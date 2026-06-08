@@ -8,27 +8,40 @@
     <style>
         .view { display: none; }
         .view.active { display: block; }
+        .option-box { cursor: pointer; transition: 0.2s; }
+        .option-box:hover { background-color: #f8f9fa; }
     </style>
 </head>
 <body class="bg-light">
 
-<nav class="navbar navbar-dark bg-dark shadow">
-    <div class="container-fluid">
-        <span class="navbar-brand mb-0 h1">Catholic Bible AI Quiz</span>
-        <button class="btn btn-outline-danger" onclick="resetApp()">Quit / Start Over</button>
+<nav class="navbar navbar-dark bg-dark shadow px-2">
+    <div class="container-fluid d-flex justify-content-between align-items-center">
+        <span class="navbar-brand mb-0 h1 fs-5">Catholic Bible AI Quiz</span>
+        <button class="btn btn-outline-danger btn-sm" onclick="resetApp()">Quit / Start Over</button>
     </div>
 </nav>
 
 <div class="container mt-4 pb-5">
     
     <!-- View 1: Select Section -->
-    <div id="view-select" class="view active card shadow-sm p-4">
-        <h3>Choose a Section to Study</h3>
-        <p class="text-muted">Type a specific passage or click on an entire book to get started.</p>
+    <div id="view-select" class="view active card shadow-sm p-3 p-md-4">
+        <h4>Choose a Section to Study</h4>
+        <p class="text-muted small">Type a specific passage or click on an entire book to get started.</p>
         
-        <div class="input-group mb-4">
-            <input type="text" id="citationInput" class="form-control" placeholder="e.g. John 3:16-21, Genesis 1, Romans...">
-            <button class="btn btn-primary" onclick="submitCitation()">Study Selection</button>
+        <div class="input-group mb-3">
+            <input type="text" id="citationInput" class="form-control" placeholder="e.g. John 3:16-21">
+            <button class="btn btn-primary" onclick="submitCitation()">Study</button>
+        </div>
+
+        <!-- Optional Feature Toggle -->
+        <div class="form-check form-switch mb-4 bg-light p-3 border rounded shadow-sm">
+            <input class="form-check-input ms-0 me-2" type="checkbox" id="includeFrqCheck">
+            <label class="form-check-label fw-bold text-secondary" for="includeFrqCheck">
+                Include Free-Response Writing Section
+            </label>
+            <div class="small text-muted mt-1" style="margin-left: 2.5rem;">
+                Enable this to test your synthesis skills with an AI-graded paragraph response.
+            </div>
         </div>
 
         <hr>
@@ -36,14 +49,14 @@
         <h5 class="mt-3 text-primary">Old Testament</h5>
         <div class="d-flex flex-wrap gap-2">
             {% for book in ot_books %}
-            <button class="btn btn-outline-secondary btn-sm" onclick="selectBook('{{ book }}')">{{ book }}</button>
+            <button class="btn btn-outline-secondary btn-sm flex-grow-1" onclick="selectBook('{{ book }}')">{{ book }}</button>
             {% endfor %}
         </div>
         
         <h5 class="mt-4 text-success">New Testament</h5>
         <div class="d-flex flex-wrap gap-2">
             {% for book in nt_books %}
-            <button class="btn btn-outline-secondary btn-sm" onclick="selectBook('{{ book }}')">{{ book }}</button>
+            <button class="btn btn-outline-secondary btn-sm flex-grow-1" onclick="selectBook('{{ book }}')">{{ book }}</button>
             {% endfor %}
         </div>
     </div>
@@ -52,45 +65,51 @@
     <div id="view-loading" class="view text-center py-5">
         <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div>
         <h4 class="mt-3" id="loadingText">Preparing your quiz...</h4>
+        <p class="text-muted small" id="loadingSubtext"></p>
     </div>
 
     <!-- View 3: Take Quiz -->
     <div id="view-quiz" class="view">
-        <h3 id="quizPassageTitle" class="mb-3 text-primary"></h3>
+        <h4 id="quizPassageTitle" class="mb-3 text-primary border-bottom pb-2"></h4>
         
         <div id="mcqContainer"></div>
         
-        <div class="card border-primary mb-4 shadow-sm">
+        <!-- Hidden by default, toggled via JS -->
+        <div id="frqCard" class="card border-primary mb-4 shadow-sm" style="display: none;">
             <div class="card-header bg-primary text-white fw-bold">Free Response Question</div>
             <div class="card-body">
                 <p id="frqText" class="fw-bold"></p>
                 <p class="small text-muted mb-2">Write a 5+ sentence response demonstrating synthesis and understanding.</p>
-                <textarea id="frqAnswer" class="form-control" rows="6" placeholder="Type your answer here..."></textarea>
+                <textarea id="frqAnswer" class="form-control" rows="5" placeholder="Type your answer here..."></textarea>
             </div>
         </div>
 
-        <button class="btn btn-success btn-lg w-100" onclick="submitQuiz()">Submit Quiz for Grading</button>
+        <button class="btn btn-success btn-lg w-100 py-3 fw-bold" onclick="submitQuiz()">Submit Quiz for Grading</button>
     </div>
 
     <!-- View 4: Results -->
     <div id="view-results" class="view">
         <div class="alert alert-info text-center shadow-sm">
-            <h2 id="mcqScoreText"></h2>
+            <h3 id="mcqScoreText" class="mb-0"></h3>
         </div>
 
-        <h4 class="mt-4">Free Response Grade</h4>
-        <div class="card mb-4 shadow-sm">
-            <div class="card-body">
-                <p><strong>Your Answer:</strong> <span id="frqUserAnswer" class="text-muted"></span></p>
-                <h5 id="frqGradeText" class="text-success mt-3"></h5>
-                <p><strong>Teacher's Feedback:</strong> <span id="frqFeedbackText"></span></p>
+        <!-- Hidden by default, toggled via JS -->
+        <div id="frqResultCard" style="display: none;">
+            <h4 class="mt-4">Free Response Grade</h4>
+            <div class="card mb-4 shadow-sm">
+                <div class="card-body">
+                    <p class="small mb-1"><strong>Your Answer:</strong></p>
+                    <p id="frqUserAnswer" class="text-muted fst-italic"></p>
+                    <h5 id="frqGradeText" class="text-success mt-3"></h5>
+                    <p class="mb-0"><strong>Teacher's Feedback:</strong> <span id="frqFeedbackText"></span></p>
+                </div>
             </div>
         </div>
 
         <h4>Multiple Choice Review</h4>
         <div id="mcqResultsContainer" class="mb-4"></div>
 
-        <button class="btn btn-primary btn-lg w-100" onclick="resetApp()">Go Back to Start</button>
+        <button class="btn btn-primary btn-lg w-100 py-3 fw-bold" onclick="resetApp()">Go Back to Start</button>
     </div>
 
 </div>
@@ -108,6 +127,9 @@
         currentQuiz = null;
         currentPassage = null;
         document.getElementById('citationInput').value = '';
+        document.getElementById('loadingSubtext').innerText = '';
+        // Reset checkbox to default (off)
+        document.getElementById('includeFrqCheck').checked = false; 
         showView('view-select');
     }
 
@@ -122,11 +144,11 @@
     }
 
     async function startQuiz(citation) {
+        const includeFrq = document.getElementById('includeFrqCheck').checked;
         showView('view-loading');
         document.getElementById('loadingText').innerText = "Validating reference...";
         
         try {
-            // Validate locally without AI to avoid hallucination
             const valRes = await fetch('/validate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -140,15 +162,26 @@
             }
             
             currentPassage = valData.passage;
-            document.getElementById('loadingText').innerText = `Generating ${valData.num_questions} questions for ${currentPassage}...`;
             
-            // Generate Quiz with Gemini
+            document.getElementById('loadingText').innerText = `Generating 5 questions...`;
+            if (includeFrq) {
+                document.getElementById('loadingSubtext').innerText = "This includes a custom writing section.";
+            }
+            
+            // Simplified API call: We only fetch once since it is exactly 5 questions
             const genRes = await fetch('/generate_questions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ passage: currentPassage, num_questions: valData.num_questions })
+                body: JSON.stringify({ passage: currentPassage, include_frq: includeFrq })
             });
-            const genData = await genRes.json();
+
+            const text = await genRes.text();
+            let genData;
+            try {
+                genData = JSON.parse(text);
+            } catch (e) {
+                throw new Error("Server timeout or invalid response. The server may be overloaded.");
+            }
             
             if (genData.error) throw new Error(genData.error);
             
@@ -158,8 +191,8 @@
             
         } catch (err) {
             console.error(err);
-            alert("An error occurred connecting to the AI: " + err.message);
-            showView('view-select');
+            alert("An error occurred: " + err.message);
+            resetApp();
         }
     }
 
@@ -172,12 +205,12 @@
             container.innerHTML += `
                 <div class="card mb-3 shadow-sm">
                     <div class="card-body">
-                        <p class="fw-bold">${idx + 1}. ${mcq.question}</p>
+                        <p class="fw-bold mb-3">${idx + 1}. ${mcq.question}</p>
                         ${['A', 'B', 'C', 'D'].map(opt => `
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="q${idx}" value="${opt}" id="q${idx}${opt}">
-                                <label class="form-check-label" for="q${idx}${opt}">
-                                    ${opt}) ${mcq[`option_${opt.toLowerCase()}`]}
+                            <div class="form-check p-2 border rounded mb-2 option-box" onclick="document.getElementById('q${idx}${opt}').checked = true;">
+                                <input class="form-check-input ms-1" type="radio" name="q${idx}" value="${opt}" id="q${idx}${opt}">
+                                <label class="form-check-label w-100 ms-2" for="q${idx}${opt}">
+                                    <strong>${opt})</strong> ${mcq[`option_${opt.toLowerCase()}`]}
                                 </label>
                             </div>
                         `).join('')}
@@ -186,15 +219,20 @@
             `;
         });
         
-        document.getElementById('frqText').innerText = currentQuiz.frq_question;
-        document.getElementById('frqAnswer').value = '';
+        // Handle optional FRQ UI
+        if (currentQuiz.frq_question) {
+            document.getElementById('frqCard').style.display = 'block';
+            document.getElementById('frqText').innerText = currentQuiz.frq_question;
+            document.getElementById('frqAnswer').value = '';
+        } else {
+            document.getElementById('frqCard').style.display = 'none';
+        }
     }
 
     async function submitQuiz() {
         let mcqScore = 0;
         const mcqResults = [];
         
-        // Locally grade MCQs
         currentQuiz.mcqs.forEach((mcq, idx) => {
             const selected = document.querySelector(`input[name="q${idx}"]:checked`);
             const userChoice = selected ? selected.value : null;
@@ -208,32 +246,41 @@
             });
         });
         
-        const userFrqAnswer = document.getElementById('frqAnswer').value.trim();
-        if (!userFrqAnswer && !confirm("You left the Free Response blank. Submit anyway?")) return;
-        
-        showView('view-loading');
-        document.getElementById('loadingText').innerText = "AI is grading your Free Response...";
-        
-        try {
-            const gradeRes = await fetch('/grade_frq', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    passage: currentPassage,
-                    frq_question: currentQuiz.frq_question,
-                    user_answer: userFrqAnswer || "No answer provided."
-                })
-            });
-            const gradeData = await gradeRes.json();
-            if(gradeData.error) throw new Error(gradeData.error);
+        const hasFrq = !!currentQuiz.frq_question;
+
+        if (hasFrq) {
+            const userFrqAnswer = document.getElementById('frqAnswer').value.trim();
+            if (!userFrqAnswer && !confirm("You left the Free Response blank. Submit anyway?")) return;
             
-            renderResults(mcqScore, mcqResults, gradeData, userFrqAnswer);
+            showView('view-loading');
+            document.getElementById('loadingText').innerText = "AI is grading your Free Response...";
+            document.getElementById('loadingSubtext').innerText = '';
+            
+            try {
+                const gradeRes = await fetch('/grade_frq', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        passage: currentPassage,
+                        frq_question: currentQuiz.frq_question,
+                        user_answer: userFrqAnswer || "No answer provided."
+                    })
+                });
+                const gradeData = await gradeRes.json();
+                if(gradeData.error) throw new Error(gradeData.error);
+                
+                renderResults(mcqScore, mcqResults, gradeData, userFrqAnswer);
+                showView('view-results');
+                
+            } catch (err) {
+                console.error(err);
+                alert("Failed to grade FRQ. " + err.message);
+                showView('view-quiz');
+            }
+        } else {
+            // If FRQ was toggled off, skip grading entirely and jump to results
+            renderResults(mcqScore, mcqResults, null, null);
             showView('view-results');
-            
-        } catch (err) {
-            console.error(err);
-            alert("Failed to grade FRQ. " + err.message);
-            showView('view-quiz');
         }
     }
 
@@ -244,17 +291,23 @@
         resContainer.innerHTML = '';
         results.forEach((r, idx) => {
             resContainer.innerHTML += `
-                <div class="alert ${r.isCorrect ? 'alert-success' : 'alert-danger'}">
-                    <strong>${idx + 1}. ${r.question}</strong><br>
-                    <span class="text-dark">Your Answer: ${r.userChoice || 'None'}</span> <br>
-                    <strong>Correct Answer: ${r.correctChoice}</strong>
+                <div class="alert ${r.isCorrect ? 'alert-success' : 'alert-danger'} py-2">
+                    <p class="mb-1 fw-bold">${idx + 1}. ${r.question}</p>
+                    <p class="mb-0 small">Your Answer: ${r.userChoice || 'None'} <br>
+                    <strong>Correct Answer: ${r.correctChoice}</strong></p>
                 </div>
             `;
         });
         
-        document.getElementById('frqUserAnswer').innerText = frqAnswer || "No answer provided.";
-        document.getElementById('frqGradeText').innerText = `Score: ${frqGrade.score} / 3`;
-        document.getElementById('frqFeedbackText').innerText = frqGrade.feedback;
+        // Handle optional FRQ Results UI
+        if (frqGrade) {
+            document.getElementById('frqResultCard').style.display = 'block';
+            document.getElementById('frqUserAnswer').innerText = frqAnswer || "No answer provided.";
+            document.getElementById('frqGradeText').innerText = `Score: ${frqGrade.score} / 3`;
+            document.getElementById('frqFeedbackText').innerText = frqGrade.feedback;
+        } else {
+            document.getElementById('frqResultCard').style.display = 'none';
+        }
     }
 </script>
 

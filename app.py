@@ -36,7 +36,7 @@ CATHOLIC_BIBLE = {
 OT_BOOKS = list(CATHOLIC_BIBLE.keys())[:46]
 NT_BOOKS = list(CATHOLIC_BIBLE.keys())[46:]
 
-# --- Pydantic Schemas for Gemini Structured Outputs ---
+# --- Pydantic Schemas ---
 class MCQ(BaseModel):
     question: str
     option_a: str
@@ -45,7 +45,12 @@ class MCQ(BaseModel):
     option_d: str
     correct_option: str # "A", "B", "C", or "D"
 
-class Quiz(BaseModel):
+# Schema when FRQ is disabled
+class QuizMCQOnly(BaseModel):
+    mcqs: list[MCQ]
+
+# Schema when FRQ is enabled
+class QuizWithFRQ(BaseModel):
     mcqs: list[MCQ]
     frq_question: str
 
@@ -91,16 +96,6 @@ def parse_citation(citation):
         
     return {"book": found_book, "chapter": chapter, "type": "chapter"}
 
-def get_num_questions(parsed):
-    if parsed['type'] == 'book':
-        chapters = CATHOLIC_BIBLE[parsed['book']]
-        return min(chapters * 10, 50) 
-    elif parsed['type'] == 'chapter':
-        return 25 
-    elif parsed['type'] == 'verse':
-        verses = parsed['verse_end'] - parsed['verse_start'] + 1
-        return min(max(3, int(verses * 0.8)), 25)
-
 def parse_llm_json(text):
     text = text.strip()
     if text.startswith("```json"): text = text[7:-3]
@@ -128,19 +123,23 @@ def validate():
         if parsed['verse_end'] > parsed['verse_start']:
             passage_str += f"-{parsed['verse_end']}"
             
-    num_q = get_num_questions(parsed)
-    return jsonify({"status": "ok", "passage": passage_str, "num_questions": num_q})
+    # Always set to 5 questions to limit token usage for portfolio version
+    return jsonify({"status": "ok", "passage": passage_str, "num_questions": 5})
 
 @app.route('/generate_questions', methods=['POST'])
 def generate_questions():
     data = request.json
     passage = data.get('passage')
-    num_questions = data.get('num_questions', 5)
+    include_frq = data.get('include_frq', False)
+    
+    # Dynamically select schema and instructions based on the user's toggle
+    schema = QuizWithFRQ if include_frq else QuizMCQOnly
+    frq_instruction = "2. Generate exactly 1 short free-response question (FRQ) that requires synthesis and consolidation of ideas from the passage." if include_frq else ""
     
     prompt = f"""
     You are an expert Catholic theology teacher. Generate a quiz strictly based on the Catholic Bible for: {passage}.
-    1. Generate exactly {num_questions} multiple-choice questions (MCQs). Each MCQ must have 4 options and one clear correct answer.
-    2. Generate exactly 1 short free-response question (FRQ) that requires synthesis and consolidation of ideas from the passage.
+    1. Generate exactly 5 multiple-choice questions (MCQs). Each MCQ must have 4 options and one clear correct answer.
+    {frq_instruction}
     """
     try:
         response = client.models.generate_content(
@@ -148,12 +147,11 @@ def generate_questions():
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=Quiz,
+                response_schema=schema,
             ),
         )
         return jsonify(parse_llm_json(response.text))
     except Exception as e:
-        # Returning HTTP 400 helps the frontend know this is an API error, not a proxy timeout
         return jsonify({"error": f"AI Generation Failed: {str(e)}"}), 400
 
 @app.route('/grade_frq', methods=['POST'])
