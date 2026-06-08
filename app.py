@@ -8,7 +8,7 @@ from google.genai import types
 
 app = Flask(__name__)
 
-# Initialize the Gemini client (Requires GEMINI_API_KEY in environment)
+# Initialize the Gemini client
 client = genai.Client()
 
 # --- Catholic Bible Metadata for Validation ---
@@ -58,11 +58,9 @@ def normalize(s):
     return " ".join(s.split()).lower()
 
 def parse_citation(citation):
-    """Locally validates citations (e.g. 'John 3:16-21', 'Genesis 1', 'Mark') without AI."""
     norm_cit = normalize(citation)
     found_book = None
     
-    # Sort keys by length descending so "1 John" matches before "John"
     for book in sorted(CATHOLIC_BIBLE.keys(), key=len, reverse=True):
         norm_book = normalize(book)
         if norm_cit.startswith(norm_book):
@@ -94,12 +92,11 @@ def parse_citation(citation):
     return {"book": found_book, "chapter": chapter, "type": "chapter"}
 
 def get_num_questions(parsed):
-    """Scales the number of multiple choice questions directly to the passage size."""
     if parsed['type'] == 'book':
         chapters = CATHOLIC_BIBLE[parsed['book']]
-        return min(chapters * 10, 50) # Scale to book size, hard limit at 50 to ensure API stability
+        return min(chapters * 10, 50) 
     elif parsed['type'] == 'chapter':
-        return 25 # Per prompt requirement: roughly 25 for a chapter
+        return 25 
     elif parsed['type'] == 'verse':
         verses = parsed['verse_end'] - parsed['verse_start'] + 1
         return min(max(3, int(verses * 0.8)), 25)
@@ -143,7 +140,7 @@ def generate_questions():
     prompt = f"""
     You are an expert Catholic theology teacher. Generate a quiz strictly based on the Catholic Bible for: {passage}.
     1. Generate exactly {num_questions} multiple-choice questions (MCQs). Each MCQ must have 4 options and one clear correct answer.
-    2. Generate exactly 1 short free-response question (FRQ) that requires synthesis and consolidation of ideas from the passage. It must be deep enough to expect a 5+ sentence answer.
+    2. Generate exactly 1 short free-response question (FRQ) that requires synthesis and consolidation of ideas from the passage.
     """
     try:
         response = client.models.generate_content(
@@ -156,7 +153,8 @@ def generate_questions():
         )
         return jsonify(parse_llm_json(response.text))
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        # Returning HTTP 400 helps the frontend know this is an API error, not a proxy timeout
+        return jsonify({"error": f"AI Generation Failed: {str(e)}"}), 400
 
 @app.route('/grade_frq', methods=['POST'])
 def handle_grade_frq():
@@ -180,7 +178,7 @@ def handle_grade_frq():
         )
         return jsonify(parse_llm_json(response.text))
     except Exception as e:
-         return jsonify({"error": str(e)}), 500
+         return jsonify({"error": str(e)}), 400
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
