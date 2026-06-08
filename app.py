@@ -62,9 +62,15 @@ def normalize(s):
     return " ".join(s.split()).lower()
 
 def parse_citation(citation):
+    """
+    Locally validates Bible citations without using AI.
+    Supports: Book, Chapter, Chapter Ranges, and Single-Chapter Verse Ranges.
+    Rejects: Gibberish, cross-chapter verse ranges (ambiguity), and out-of-range chapters.
+    """
     norm_cit = normalize(citation)
     found_book = None
     
+    # Match the book name
     for book in sorted(CATHOLIC_BIBLE.keys(), key=len, reverse=True):
         norm_book = normalize(book)
         if norm_cit.startswith(norm_book):
@@ -74,27 +80,53 @@ def parse_citation(citation):
             
     if not found_book:
         return {"error": "Invalid book name. Please check your spelling."}
+    
+    # Case 1: Entire Book (e.g., "Genesis")
     if not remainder:
         return {"book": found_book, "type": "book"}
         
-    match = re.match(r'^(\d+)(?::(\d+)(?:-(\d+))?)?$', remainder)
-    if not match:
-        return {"error": "Invalid chapter/verse format. Use formatting like 'John 3' or 'John 3:16-21'."}
+    max_chapters = CATHOLIC_BIBLE[found_book]
+    
+    # Case 2: Single Chapter (e.g., "Genesis 1")
+    m_single_chapter = re.match(r'^(\d+)$', remainder)
+    if m_single_chapter:
+        ch = int(m_single_chapter.group(1))
+        if ch < 1 or ch > max_chapters:
+            return {"error": f"Invalid chapter. {found_book} only has {max_chapters} chapters."}
+        return {"book": found_book, "chapter": ch, "type": "chapter"}
         
-    chapter = int(match.group(1))
-    if chapter < 1 or chapter > CATHOLIC_BIBLE[found_book]:
-        return {"error": f"Invalid chapter. {found_book} has {CATHOLIC_BIBLE[found_book]} chapters."}
+    # Case 3: Chapter Range (e.g., "Genesis 1-2")
+    m_chapter_range = re.match(r'^(\d+)-(\d+)$', remainder)
+    if m_chapter_range:
+        ch_start = int(m_chapter_range.group(1))
+        ch_end = int(m_chapter_range.group(2))
+        if ch_start < 1 or ch_end < 1:
+            return {"error": "Chapter numbers must be 1 or greater."}
+        if ch_start > max_chapters or ch_end > max_chapters:
+            return {"error": f"Invalid chapter range. {found_book} only has {max_chapters} chapters."}
+        if ch_end < ch_start:
+            return {"error": "Invalid chapter range. The end chapter cannot precede the start chapter."}
+        return {"book": found_book, "chapter_start": ch_start, "chapter_end": ch_end, "type": "chapter_range"}
         
-    v_start, v_end = match.group(2), match.group(3)
-    if v_start:
-        v_start = int(v_start)
-        v_end = int(v_end) if v_end else v_start
+    # Case 4: Verse / Verse Range (e.g., "Genesis 1:1-5" or "Genesis 1:1")
+    m_verse = re.match(r'^(\d+):(\d+)(?:-(\d+))?$', remainder)
+    if m_verse:
+        ch = int(m_verse.group(1))
+        v_start = int(m_verse.group(2))
+        v_end = int(m_verse.group(3)) if m_verse.group(3) else v_start
+        
+        if ch < 1 or ch > max_chapters:
+            return {"error": f"Invalid chapter. {found_book} only has {max_chapters} chapters."}
+        if v_start < 1 or v_end < 1:
+            return {"error": "Verse numbers must be 1 or greater."}
         if v_end < v_start:
-             return {"error": "Invalid verse range."}
-        return {"book": found_book, "chapter": chapter, "verse_start": v_start, "verse_end": v_end, "type": "verse"}
+            return {"error": "Invalid verse range. The end verse cannot precede the start verse."}
+            
+        return {"book": found_book, "chapter": ch, "verse_start": v_start, "verse_end": v_end, "type": "verse"}
         
-    return {"book": found_book, "chapter": chapter, "type": "chapter"}
-
+    # Default Fallback: Matches ambiguous inputs like "Genesis 1-2:1-5" or general gibberish
+    return {"error": "Invalid format. Use formats like 'John 3', 'John 1-2', or 'John 3:16-21'. Avoid mixing ranges."}
+    
 def parse_llm_json(text):
     text = text.strip()
     if text.startswith("```json"): text = text[7:-3]
@@ -115,13 +147,16 @@ def validate():
         return jsonify({"status": "error", "message": parsed['error']})
     
     passage_str = parsed['book']
-    if parsed['type'] in ['chapter', 'verse']:
+    if parsed['type'] == 'chapter':
         passage_str += f" {parsed['chapter']}"
-    if parsed['type'] == 'verse':
-        passage_str += f":{parsed['verse_start']}"
+    elif parsed['type'] == 'chapter_range':
+        passage_str += f" {parsed['chapter_start']}-{parsed['chapter_end']}"
+    elif parsed['type'] == 'verse':
+        passage_str += f" {parsed['chapter']}:{parsed['verse_start']}"
         if parsed['verse_end'] > parsed['verse_start']:
             passage_str += f"-{parsed['verse_end']}"
             
+    # Return exactly 5 questions
     return jsonify({"status": "ok", "passage": passage_str, "num_questions": 5})
 
 @app.route('/generate_questions', methods=['POST'])
