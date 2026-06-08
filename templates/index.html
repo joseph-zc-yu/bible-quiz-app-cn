@@ -8,8 +8,10 @@
     <style>
         .view { display: none; }
         .view.active { display: block; }
-        .option-box { cursor: pointer; transition: 0.2s; }
-        .option-box:hover { background-color: #f8f9fa; }
+        /* Smooth transitions for the new big buttons */
+        .option-btn { transition: all 0.2s ease-in-out; white-space: normal; height: auto; }
+        .option-btn:hover { background-color: #e9ecef; }
+        .option-btn.selected { background-color: #0d6efd; color: white; border-color: #0d6efd; }
     </style>
 </head>
 <body class="bg-light">
@@ -33,7 +35,6 @@
             <button class="btn btn-primary" onclick="submitCitation()">Study</button>
         </div>
 
-        <!-- Optional Feature Toggle -->
         <div class="form-check form-switch mb-4 bg-light p-3 border rounded shadow-sm">
             <input class="form-check-input ms-0 me-2" type="checkbox" id="includeFrqCheck">
             <label class="form-check-label fw-bold text-secondary" for="includeFrqCheck">
@@ -74,7 +75,6 @@
         
         <div id="mcqContainer"></div>
         
-        <!-- Hidden by default, toggled via JS -->
         <div id="frqCard" class="card border-primary mb-4 shadow-sm" style="display: none;">
             <div class="card-header bg-primary text-white fw-bold">Free Response Question</div>
             <div class="card-body">
@@ -84,7 +84,7 @@
             </div>
         </div>
 
-        <button class="btn btn-success btn-lg w-100 py-3 fw-bold" onclick="submitQuiz()">Submit Quiz for Grading</button>
+        <button class="btn btn-success btn-lg w-100 py-3 fw-bold shadow-sm" onclick="submitQuiz()">Submit Quiz for Grading</button>
     </div>
 
     <!-- View 4: Results -->
@@ -93,7 +93,6 @@
             <h3 id="mcqScoreText" class="mb-0"></h3>
         </div>
 
-        <!-- Hidden by default, toggled via JS -->
         <div id="frqResultCard" style="display: none;">
             <h4 class="mt-4">Free Response Grade</h4>
             <div class="card mb-4 shadow-sm">
@@ -109,7 +108,7 @@
         <h4>Multiple Choice Review</h4>
         <div id="mcqResultsContainer" class="mb-4"></div>
 
-        <button class="btn btn-primary btn-lg w-100 py-3 fw-bold" onclick="resetApp()">Go Back to Start</button>
+        <button class="btn btn-primary btn-lg w-100 py-3 fw-bold shadow-sm" onclick="resetApp()">Go Back to Start</button>
     </div>
 
 </div>
@@ -117,6 +116,7 @@
 <script>
     let currentQuiz = null;
     let currentPassage = null;
+    let userAnswers = {}; // Global object to track button selections
 
     function showView(viewId) {
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -126,9 +126,9 @@
     function resetApp() {
         currentQuiz = null;
         currentPassage = null;
+        userAnswers = {};
         document.getElementById('citationInput').value = '';
         document.getElementById('loadingSubtext').innerText = '';
-        // Reset checkbox to default (off)
         document.getElementById('includeFrqCheck').checked = false; 
         showView('view-select');
     }
@@ -168,7 +168,6 @@
                 document.getElementById('loadingSubtext').innerText = "This includes a custom writing section.";
             }
             
-            // Simplified API call: We only fetch once since it is exactly 5 questions
             const genRes = await fetch('/generate_questions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -196,30 +195,48 @@
         }
     }
 
+    // New function to handle the massive click buttons
+    function selectOption(qIdx, optionLetter) {
+        userAnswers[qIdx] = optionLetter;
+        
+        // Deselect all buttons for this specific question
+        document.querySelectorAll(`.q${qIdx}-btn`).forEach(btn => {
+            btn.classList.remove('selected', 'btn-primary', 'text-white');
+            btn.classList.add('btn-outline-secondary');
+        });
+        
+        // Highlight the clicked button
+        const selectedBtn = document.getElementById(`btn_q${qIdx}_${optionLetter}`);
+        selectedBtn.classList.remove('btn-outline-secondary');
+        selectedBtn.classList.add('selected', 'btn-primary', 'text-white');
+    }
+
     function renderQuiz() {
+        userAnswers = {}; // reset selections
         const container = document.getElementById('mcqContainer');
         container.innerHTML = '';
         document.getElementById('quizPassageTitle').innerText = `Studying: ${currentPassage}`;
         
         currentQuiz.mcqs.forEach((mcq, idx) => {
+            // Renders large, full-width buttons instead of radios
             container.innerHTML += `
-                <div class="card mb-3 shadow-sm">
-                    <div class="card-body">
-                        <p class="fw-bold mb-3">${idx + 1}. ${mcq.question}</p>
-                        ${['A', 'B', 'C', 'D'].map(opt => `
-                            <div class="form-check p-2 border rounded mb-2 option-box" onclick="document.getElementById('q${idx}${opt}').checked = true;">
-                                <input class="form-check-input ms-1" type="radio" name="q${idx}" value="${opt}" id="q${idx}${opt}">
-                                <label class="form-check-label w-100 ms-2" for="q${idx}${opt}">
-                                    <strong>${opt})</strong> ${mcq[`option_${opt.toLowerCase()}`]}
-                                </label>
-                            </div>
-                        `).join('')}
+                <div class="card mb-4 shadow-sm border-0 bg-white">
+                    <div class="card-body p-4">
+                        <h5 class="fw-bold mb-4">${idx + 1}. ${mcq.question}</h5>
+                        <div class="d-flex flex-column gap-2">
+                            ${['A', 'B', 'C', 'D'].map(opt => `
+                                <button type="button" id="btn_q${idx}_${opt}" 
+                                        class="btn btn-outline-secondary w-100 text-start p-3 option-btn q${idx}-btn" 
+                                        onclick="selectOption(${idx}, '${opt}')">
+                                    <strong class="me-2">${opt})</strong> ${mcq[`option_${opt.toLowerCase()}`]}
+                                </button>
+                            `).join('')}
+                        </div>
                     </div>
                 </div>
             `;
         });
         
-        // Handle optional FRQ UI
         if (currentQuiz.frq_question) {
             document.getElementById('frqCard').style.display = 'block';
             document.getElementById('frqText').innerText = currentQuiz.frq_question;
@@ -234,14 +251,25 @@
         const mcqResults = [];
         
         currentQuiz.mcqs.forEach((mcq, idx) => {
-            const selected = document.querySelector(`input[name="q${idx}"]:checked`);
-            const userChoice = selected ? selected.value : null;
-            const isCorrect = userChoice === mcq.correct_option;
+            const userChoiceLetter = userAnswers[idx] || null;
+            
+            // Failsafe: Format correct option mathematically just in case of weird cached data
+            let correctLetter = String(mcq.correct_option).replace(/option_/i, '').trim().toUpperCase();
+            if (correctLetter.length > 1) correctLetter = correctLetter.charAt(correctLetter.length - 1);
+
+            const isCorrect = userChoiceLetter === correctLetter;
             if (isCorrect) mcqScore++;
+            
+            // Get the full text mapping for the results screen
+            const userChoiceText = userChoiceLetter ? mcq[`option_${userChoiceLetter.toLowerCase()}`] : 'No answer selected';
+            const correctChoiceText = mcq[`option_${correctLetter.toLowerCase()}`];
+
             mcqResults.push({
                 question: mcq.question,
-                userChoice: userChoice,
-                correctChoice: mcq.correct_option,
+                userChoiceLetter: userChoiceLetter,
+                userChoiceText: userChoiceText,
+                correctChoiceLetter: correctLetter,
+                correctChoiceText: correctChoiceText,
                 isCorrect: isCorrect
             });
         });
@@ -278,7 +306,6 @@
                 showView('view-quiz');
             }
         } else {
-            // If FRQ was toggled off, skip grading entirely and jump to results
             renderResults(mcqScore, mcqResults, null, null);
             showView('view-results');
         }
@@ -289,17 +316,25 @@
         
         const resContainer = document.getElementById('mcqResultsContainer');
         resContainer.innerHTML = '';
+        
         results.forEach((r, idx) => {
+            // Displays the full text of the options instead of just A/B/C/D
             resContainer.innerHTML += `
-                <div class="alert ${r.isCorrect ? 'alert-success' : 'alert-danger'} py-2">
-                    <p class="mb-1 fw-bold">${idx + 1}. ${r.question}</p>
-                    <p class="mb-0 small">Your Answer: ${r.userChoice || 'None'} <br>
-                    <strong>Correct Answer: ${r.correctChoice}</strong></p>
+                <div class="alert ${r.isCorrect ? 'alert-success' : 'alert-danger'} py-3 shadow-sm border-0">
+                    <h5 class="mb-3 fw-bold">${idx + 1}. ${r.question}</h5>
+                    <hr class="opacity-25 my-2">
+                    <p class="mb-2">
+                        <strong>Your Answer:</strong><br>
+                        ${r.userChoiceLetter ? `<span class="badge ${r.isCorrect ? 'bg-success' : 'bg-danger'} me-2 fs-6">${r.userChoiceLetter}</span> ${r.userChoiceText}` : '<em>None</em>'}
+                    </p>
+                    <p class="mb-0">
+                        <strong>Correct Answer:</strong><br>
+                        <span class="badge bg-success me-2 fs-6">${r.correctChoiceLetter}</span> ${r.correctChoiceText}
+                    </p>
                 </div>
             `;
         });
         
-        // Handle optional FRQ Results UI
         if (frqGrade) {
             document.getElementById('frqResultCard').style.display = 'block';
             document.getElementById('frqUserAnswer').innerText = frqAnswer || "No answer provided.";

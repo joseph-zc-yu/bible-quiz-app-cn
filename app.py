@@ -1,6 +1,7 @@
 import os
 import json
 import re
+from typing import Literal
 from flask import Flask, render_template, request, jsonify
 from pydantic import BaseModel
 from google import genai
@@ -43,13 +44,11 @@ class MCQ(BaseModel):
     option_b: str
     option_c: str
     option_d: str
-    correct_option: str # "A", "B", "C", or "D"
+    correct_option: Literal["A", "B", "C", "D"] # Forces the AI to strictly output one of these letters
 
-# Schema when FRQ is disabled
 class QuizMCQOnly(BaseModel):
     mcqs: list[MCQ]
 
-# Schema when FRQ is enabled
 class QuizWithFRQ(BaseModel):
     mcqs: list[MCQ]
     frq_question: str
@@ -123,7 +122,6 @@ def validate():
         if parsed['verse_end'] > parsed['verse_start']:
             passage_str += f"-{parsed['verse_end']}"
             
-    # Always set to 5 questions to limit token usage for portfolio version
     return jsonify({"status": "ok", "passage": passage_str, "num_questions": 5})
 
 @app.route('/generate_questions', methods=['POST'])
@@ -132,7 +130,6 @@ def generate_questions():
     passage = data.get('passage')
     include_frq = data.get('include_frq', False)
     
-    # Dynamically select schema and instructions based on the user's toggle
     schema = QuizWithFRQ if include_frq else QuizMCQOnly
     frq_instruction = "2. Generate exactly 1 short free-response question (FRQ) that requires synthesis and consolidation of ideas from the passage." if include_frq else ""
     
