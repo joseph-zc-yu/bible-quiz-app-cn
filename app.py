@@ -11,7 +11,7 @@ app = Flask(__name__)
 # Initialize the OpenAI-compatible client for Zhipu AI (BigModel)
 client = OpenAI(
     api_key=os.environ.get("ZHIPU_API_KEY", "your-api-key"),
-    base_url="https://open.bigmodel.cn/api/paas/v4/"
+    base_url="https://open.bigmodel.cn/api/paas/v4" # Removed trailing slash to prevent 404 routing errors
 )
 
 # --- Catholic Bible Metadata ---
@@ -42,9 +42,9 @@ CHINESE_ALIASES = {
     "瑪加伯上": "1 Maccabees", "瑪加伯下": "2 Maccabees", "約伯傳": "Job", "聖詠集": "Psalms", "箴言": "Proverbs",
     "訓道篇": "Ecclesiastes", "雅歌": "Song of Solomon", "智慧篇": "Wisdom", "德訓篇": "Sirach",
     "依撒意亞": "Isaiah", "耶肋米亞": "Jeremiah", "哀歌": "Lamentations", "巴路克": "Baruch", "厄則克耳": "Ezekiel",
-    "達尼爾": "Daniel", "歐瑟亞": "Hosea", "岳厄爾": "Joel", "亞毛斯": "Amos", "亞北底亞": "Obadiah", "約納": "Jonah",
-    "米該亞": "Micah", "納鴻": "Nahum", "哈巴谷": "Habakkuk", "索福尼亞": "Zephaniah", "哈蓋": "Haggai",
-    "匝加利亞": "Zechariah", "瑪拉基亞": "Malachi",
+    "達尼爾": "Daniel", "欧瑟亚": "Hosea", "岳厄尔": "Joel", "亚毛斯": "Amos", "亚北底亚": "Obadiah", "约纳": "Jonah",
+    "米该亚": "Micah", "纳鸿": "Nahum", "哈巴谷": "Habakkuk", "索福尼亚": "Zephaniah", "哈盖": "Haggai",
+    "匝加利亚": "Zechariah", "玛拉基亚": "Malachi",
     "瑪竇福音": "Matthew", "馬爾谷福音": "Mark", "路加福音": "Luke", "若望福音": "John", "宗徒大事錄": "Acts",
     "羅馬書": "Romans", "格林多前書": "1 Corinthians", "格林多後書": "2 Corinthians", "迦拉達書": "Galatians",
     "厄弗所書": "Ephesians", "斐理伯書": "Philippians", "哥羅森書": "Colossians", "得撒洛尼前書": "1 Thessalonians",
@@ -149,7 +149,6 @@ def generate_questions():
 
     frq_instruction = "2. Generate exactly 1 short free-response question (FRQ) that requires synthesis and consolidation of ideas from the passage." if include_frq else ""
     
-    # Explicitly defining the JSON schema for Zhipu AI to follow
     json_structure = '{"mcqs": [{"question": "...", "option_a": "...", "option_b": "...", "option_c": "...", "option_d": "...", "correct_option": "A"}]'
     if include_frq:
         json_structure += ', "frq_question": "..."}'
@@ -168,7 +167,7 @@ def generate_questions():
     
     try:
         response = client.chat.completions.create(
-            model="glm-4-flash",
+            model="glm-4.5-flash", # Updated to the newest available free model
             messages=[
                 {"role": "system", "content": "You are a helpful theology assistant that strictly outputs JSON."},
                 {"role": "user", "content": prompt}
@@ -201,7 +200,7 @@ def handle_grade_frq():
     """
     try:
         response = client.chat.completions.create(
-            model="glm-4-flash",
+            model="glm-4.5-flash", # Updated here as well
             messages=[
                 {"role": "system", "content": "You are an expert Catholic grader that strictly outputs JSON."},
                 {"role": "user", "content": prompt}

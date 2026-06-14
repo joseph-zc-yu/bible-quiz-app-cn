@@ -299,12 +299,21 @@
         document.getElementById('loadingText').innerText = t('loadingRef');
         
         try {
+            // Defensive Fetching for Validation
             const valRes = await fetch('/validate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ citation })
             });
-            const valData = await valRes.json();
+            
+            // Read as text first, so we don't crash if the server sends a plain-text 404/500 error
+            const valText = await valRes.text(); 
+            let valData;
+            try {
+                valData = JSON.parse(valText);
+            } catch (e) {
+                throw new Error(`Validation API Error: ${valText.substring(0, 50)}...`);
+            }
             
             if (valData.status === 'error') {
                 alert(t(valData.error_key) || "Validation Error");
@@ -318,6 +327,7 @@
                 document.getElementById('loadingSubtext').innerText = t('loadingSubtextFrq');
             }
             
+            // Defensive Fetching for Generation
             const genRes = await fetch('/generate_questions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -328,12 +338,12 @@
                 })
             });
 
-            const text = await genRes.text();
+            const genText = await genRes.text();
             let genData;
             try {
-                genData = JSON.parse(text);
+                genData = JSON.parse(genText);
             } catch (e) {
-                throw new Error("Server timeout or invalid response.");
+                throw new Error(`Generation API Error: ${genText.substring(0, 50)}...`);
             }
             
             if (genData.error) throw new Error(genData.error);
@@ -430,6 +440,7 @@
             document.getElementById('loadingSubtext').innerText = '';
             
             try {
+                // Defensive Fetching for Grading
                 const gradeRes = await fetch('/grade_frq', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -440,7 +451,15 @@
                         language: currentLang
                     })
                 });
-                const gradeData = await gradeRes.json();
+                
+                const gradeText = await gradeRes.text();
+                let gradeData;
+                try {
+                    gradeData = JSON.parse(gradeText);
+                } catch(e) {
+                    throw new Error(`Grading API Error: ${gradeText.substring(0, 50)}...`);
+                }
+                
                 if(gradeData.error) throw new Error(gradeData.error);
                 
                 renderResults(mcqScore, mcqResults, gradeData, userFrqAnswer);
