@@ -8,7 +8,6 @@
     <style>
         .view { display: none; }
         .view.active { display: block; }
-        /* Smooth transitions for the new big buttons */
         .option-btn { transition: all 0.2s ease-in-out; white-space: normal; height: auto; }
         .option-btn:hover { background-color: #e9ecef; }
         .option-btn.selected { background-color: #0d6efd; color: white; border-color: #0d6efd; }
@@ -18,8 +17,15 @@
 
 <nav class="navbar navbar-dark bg-dark shadow px-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-        <span class="navbar-brand mb-0 h1 fs-5">Catholic Bible AI Quiz</span>
-        <button class="btn btn-outline-danger btn-sm" onclick="resetApp()">Start Over</button>
+        <span class="navbar-brand mb-0 h1 fs-5 text-truncate" data-i18n="appTitle">Catholic Bible AI Quiz</span>
+        <div class="d-flex align-items-center gap-2">
+            <!-- Language Toggle -->
+            <select class="form-select form-select-sm w-auto bg-dark text-white border-secondary" id="langSelect" onchange="changeLanguage()">
+                <option value="en">English (NRSV-CE)</option>
+                <option value="zh">中文 (思高聖經)</option>
+            </select>
+            <button class="btn btn-outline-danger btn-sm text-nowrap" data-i18n="quitBtn" onclick="resetApp()">Quit / Start Over</button>
+        </div>
     </div>
 </nav>
 
@@ -27,37 +33,37 @@
     
     <!-- View 1: Select Section -->
     <div id="view-select" class="view active card shadow-sm p-3 p-md-4">
-        <h4>Choose a Section to Study</h4>
-        <p class="text-muted small">Type a specific passage or click on an entire book to get started.</p>
+        <h4 data-i18n="chooseSection">Choose a Section to Study</h4>
+        <p class="text-muted small" data-i18n="typePassage">Type a specific passage or click on an entire book to get started.</p>
         
         <div class="input-group mb-3">
             <input type="text" id="citationInput" class="form-control" placeholder="e.g. John 3:16-21">
-            <button class="btn btn-primary" onclick="submitCitation()">Study</button>
+            <button class="btn btn-primary" data-i18n="studyBtn" onclick="submitCitation()">Study</button>
         </div>
 
         <div class="form-check form-switch mb-4 bg-light p-3 border rounded shadow-sm">
             <input class="form-check-input ms-0 me-2" type="checkbox" id="includeFrqCheck">
-            <label class="form-check-label fw-bold text-secondary" for="includeFrqCheck">
+            <label class="form-check-label fw-bold text-secondary" for="includeFrqCheck" data-i18n="includeFrq">
                 Include Free-Response Writing Section
             </label>
-            <div class="small text-muted mt-1" style="margin-left: 2.5rem;">
+            <div class="small text-muted mt-1" style="margin-left: 2.5rem;" data-i18n="frqSubtext">
                 Enable this to test your synthesis skills with an AI-graded paragraph response.
             </div>
         </div>
 
         <hr>
         
-        <h5 class="mt-3 text-primary">Old Testament</h5>
+        <h5 class="mt-3 text-primary" data-i18n="ot">Old Testament</h5>
         <div class="d-flex flex-wrap gap-2">
             {% for book in ot_books %}
-            <button class="btn btn-outline-secondary btn-sm flex-grow-1" onclick="selectBook('{{ book }}')">{{ book }}</button>
+            <button class="btn btn-outline-secondary btn-sm flex-grow-1 book-btn" data-book="{{ book }}" onclick="selectBook('{{ book }}')">{{ book }}</button>
             {% endfor %}
         </div>
         
-        <h5 class="mt-4 text-success">New Testament</h5>
+        <h5 class="mt-4 text-success" data-i18n="nt">New Testament</h5>
         <div class="d-flex flex-wrap gap-2">
             {% for book in nt_books %}
-            <button class="btn btn-outline-secondary btn-sm flex-grow-1" onclick="selectBook('{{ book }}')">{{ book }}</button>
+            <button class="btn btn-outline-secondary btn-sm flex-grow-1 book-btn" data-book="{{ book }}" onclick="selectBook('{{ book }}')">{{ book }}</button>
             {% endfor %}
         </div>
     </div>
@@ -76,15 +82,15 @@
         <div id="mcqContainer"></div>
         
         <div id="frqCard" class="card border-primary mb-4 shadow-sm" style="display: none;">
-            <div class="card-header bg-primary text-white fw-bold">Free Response Question</div>
+            <div class="card-header bg-primary text-white fw-bold" data-i18n="frqTitle">Free Response Question</div>
             <div class="card-body">
                 <p id="frqText" class="fw-bold"></p>
-                <p class="small text-muted mb-2">Write a 5+ sentence response demonstrating synthesis and understanding.</p>
+                <p class="small text-muted mb-2" data-i18n="frqInstructions">Write a 5+ sentence response demonstrating synthesis and understanding.</p>
                 <textarea id="frqAnswer" class="form-control" rows="5" placeholder="Type your answer here..."></textarea>
             </div>
         </div>
 
-        <button class="btn btn-success btn-lg w-100 py-3 fw-bold shadow-sm" onclick="submitQuiz()">Submit Quiz for Grading</button>
+        <button class="btn btn-success btn-lg w-100 py-3 fw-bold shadow-sm" data-i18n="submitQuiz" onclick="submitQuiz()">Submit Quiz for Grading</button>
     </div>
 
     <!-- View 4: Results -->
@@ -94,29 +100,173 @@
         </div>
 
         <div id="frqResultCard" style="display: none;">
-            <h4 class="mt-4">Free Response Grade</h4>
+            <h4 class="mt-4" data-i18n="frqGradeTitle">Free Response Grade</h4>
             <div class="card mb-4 shadow-sm">
                 <div class="card-body">
-                    <p class="small mb-1"><strong>Your Answer:</strong></p>
+                    <p class="small mb-1"><strong data-i18n="yourAnswer">Your Answer:</strong></p>
                     <p id="frqUserAnswer" class="text-muted fst-italic"></p>
                     <h5 id="frqGradeText" class="text-success mt-3"></h5>
-                    <p class="mb-0"><strong>Teacher's Feedback:</strong> <span id="frqFeedbackText"></span></p>
+                    <p class="mb-0"><strong data-i18n="teacherFeedback">Teacher's Feedback:</strong> <span id="frqFeedbackText"></span></p>
                 </div>
             </div>
         </div>
 
-        <h4>Multiple Choice Review</h4>
+        <h4 data-i18n="mcqReview">Multiple Choice Review</h4>
         <div id="mcqResultsContainer" class="mb-4"></div>
 
-        <button class="btn btn-primary btn-lg w-100 py-3 fw-bold shadow-sm" onclick="resetApp()">Go Back to Start</button>
+        <button class="btn btn-primary btn-lg w-100 py-3 fw-bold shadow-sm" data-i18n="goBack" onclick="resetApp()">Go Back to Start</button>
     </div>
 
 </div>
 
+<!-- Localization Dictionary and Logic -->
 <script>
+    const i18n = {
+        en: {
+            appTitle: "Catholic Bible AI Quiz",
+            quitBtn: "Quit / Start Over",
+            chooseSection: "Choose a Section to Study",
+            typePassage: "Type a specific passage or click on an entire book to get started.",
+            studyBtn: "Study",
+            placeholder: "e.g. John 3:16-21",
+            includeFrq: "Include Free-Response Writing Section",
+            frqSubtext: "Enable this to test your synthesis skills with an AI-graded paragraph response.",
+            ot: "Old Testament",
+            nt: "New Testament",
+            loadingRef: "Validating reference...",
+            generatingQ: "Generating 5 questions...",
+            loadingSubtextFrq: "This includes a custom writing section.",
+            grading: "AI is grading your Free Response...",
+            studying: "Studying:",
+            submitQuiz: "Submit Quiz for Grading",
+            frqTitle: "Free Response Question",
+            frqInstructions: "Write a 5+ sentence response demonstrating synthesis and understanding.",
+            frqPlaceholder: "Type your answer here...",
+            mcqScore: "Multiple Choice Score:",
+            frqGradeTitle: "Free Response Grade",
+            yourAnswer: "Your Answer:",
+            teacherFeedback: "Teacher's Feedback:",
+            mcqReview: "Multiple Choice Review",
+            goBack: "Go Back to Start",
+            scoreText: "Score:",
+            noAnswer: "No answer provided.",
+            none: "None",
+            correctAnswer: "Correct Answer:",
+            alertEmptyRef: "Please enter a citation.",
+            alertLeaveFrq: "You left the Free Response blank. Submit anyway?",
+            alertGradeFail: "Failed to grade FRQ.",
+            // Error keys
+            err_invalid_book: "Invalid book name. Please check your spelling.",
+            err_invalid_chapter: "Invalid chapter. Please check the max chapters for this book.",
+            err_invalid_range: "Invalid chapter/verse range.",
+            err_invalid_format: "Invalid format. Use formats like 'John 3', 'John 1-2', or 'John 3:16-21'."
+        },
+        zh: {
+            appTitle: "天主教聖經 AI 測驗",
+            quitBtn: "退出 / 重新開始",
+            chooseSection: "選擇學習章節",
+            typePassage: "輸入特定經文或點擊整卷書開始測驗。",
+            studyBtn: "開始學習",
+            placeholder: "例如: 若望福音 3:16-21",
+            includeFrq: "包含申論題 (Free-Response)",
+            frqSubtext: "啟用此功能以測試您的綜合理解能力，AI 將為您的作答評分。",
+            ot: "舊約全書",
+            nt: "新約全書",
+            loadingRef: "正在驗證經文...",
+            generatingQ: "正在生成 5 道選擇題...",
+            loadingSubtextFrq: "本次測驗包含一道申論題。",
+            grading: "AI 正在為您的申論題評分...",
+            studying: "學習範圍:",
+            submitQuiz: "提交測驗並評分",
+            frqTitle: "申論題 (Free Response)",
+            frqInstructions: "請寫下至少5個句子的回答，展現您對經文的綜合理解。",
+            frqPlaceholder: "請在此輸入您的回答...",
+            mcqScore: "選擇題得分:",
+            frqGradeTitle: "申論題成績",
+            yourAnswer: "您的回答:",
+            teacherFeedback: "教師評語:",
+            mcqReview: "選擇題檢討",
+            goBack: "返回首頁",
+            scoreText: "得分:",
+            noAnswer: "未提供答案。",
+            none: "無",
+            correctAnswer: "正確答案:",
+            alertEmptyRef: "請輸入經文出處。",
+            alertLeaveFrq: "您的申論題為空白，確定要提交嗎？",
+            alertGradeFail: "申論題評分失敗。",
+            // Error keys
+            err_invalid_book: "無效的書卷名稱，請檢查拼字。",
+            err_invalid_chapter: "無效的章節。",
+            err_invalid_range: "無效的章節或節數範圍。",
+            err_invalid_format: "格式無效。請使用如 '若望福音 3', '若望福音 1-2', 或 '若望福音 3:16-21' 的格式。"
+        }
+    };
+
+    const bookEnToZh = {
+        "Genesis": "創世紀", "Exodus": "出谷紀", "Leviticus": "肋未紀", "Numbers": "戶籍紀", "Deuteronomy": "申命紀",
+        "Joshua": "若蘇厄書", "Judges": "民長紀", "Ruth": "盧德傳", "1 Samuel": "撒慕爾紀上", "2 Samuel": "撒慕爾紀下",
+        "1 Kings": "列王紀上", "2 Kings": "列王紀下", "1 Chronicles": "編年紀上", "2 Chronicles": "編年紀下",
+        "Ezra": "厄斯德拉上", "Nehemiah": "厄斯德拉下", "Tobit": "多俾亞傳", "Judith": "友弟德傳", "Esther": "艾斯德爾傳",
+        "1 Maccabees": "瑪加伯上", "2 Maccabees": "瑪加伯下", "Job": "約伯傳", "Psalms": "聖詠集", "Proverbs": "箴言",
+        "Ecclesiastes": "訓道篇", "Song of Solomon": "雅歌", "Wisdom": "智慧篇", "Sirach": "德訓篇",
+        "Isaiah": "依撒意亞", "Jeremiah": "耶肋米亞", "Lamentations": "哀歌", "Baruch": "巴路克", "Ezekiel": "厄則克耳",
+        "Daniel": "達尼爾", "Hosea": "歐瑟亞", "Joel": "岳厄爾", "Amos": "亞毛斯", "Obadiah": "亞北底亞", "Jonah": "約納",
+        "Micah": "米該亞", "Nahum": "納鴻", "Habakkuk": "哈巴谷", "Zephaniah": "索福尼亞", "Haggai": "哈蓋",
+        "Zechariah": "匝加利亞", "Malachi": "瑪拉基亞",
+        "Matthew": "瑪竇福音", "Mark": "馬爾谷福音", "Luke": "路加福音", "John": "若望福音", "Acts": "宗徒大事錄",
+        "Romans": "羅馬書", "1 Corinthians": "格林多前書", "2 Corinthians": "格林多後書", "Galatians": "迦拉達書",
+        "Ephesians": "厄弗所書", "Philippians": "斐理伯書", "Colossians": "哥羅森書", "1 Thessalonians": "得撒洛尼前書",
+        "2 Thessalonians": "得撒洛尼後書", "1 Timothy": "弟茂德前書", "2 Timothy": "弟茂德後書", "Titus": "弟鐸書",
+        "Philemon": "費肋孟書", "Hebrews": "希伯來書", "James": "雅各伯書", "1 Peter": "伯多祿前書", "2 Peter": "伯多祿後書",
+        "1 John": "若望一書", "2 John": "若望二書", "3 John": "若望三書", "Jude": "猶達書", "Revelation": "若望默示錄"
+    };
+
+    let currentLang = 'en';
     let currentQuiz = null;
-    let currentPassage = null;
-    let userAnswers = {}; // Global object to track button selections
+    let currentPassage = null; // Stored in English canonical format for safety
+    let userAnswers = {}; 
+
+    function t(key) { return i18n[currentLang][key]; }
+
+    function changeLanguage() {
+        currentLang = document.getElementById('langSelect').value;
+        
+        // Update static UI texts
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            el.innerText = t(el.getAttribute('data-i18n'));
+        });
+        
+        // Update placeholders
+        document.getElementById('citationInput').placeholder = t('placeholder');
+        document.getElementById('frqAnswer').placeholder = t('frqPlaceholder');
+
+        // Update book buttons natively
+        document.querySelectorAll('.book-btn').forEach(btn => {
+            const enBook = btn.getAttribute('data-book');
+            btn.innerText = currentLang === 'zh' ? bookEnToZh[enBook] : enBook;
+        });
+
+        // If actively viewing a quiz/results, dynamically update the title string
+        if (currentPassage) {
+            document.getElementById('quizPassageTitle').innerText = `${t('studying')} ${localizePassage(currentPassage)}`;
+        }
+    }
+
+    function localizePassage(passageStr) {
+        if (currentLang === 'en') return passageStr;
+        let result = passageStr;
+        // Replaces the English book prefix with the Chinese translation dynamically
+        for (const enBook in bookEnToZh) {
+            if (passageStr.startsWith(enBook)) {
+                result = passageStr.replace(enBook, bookEnToZh[enBook]);
+                break;
+            }
+        }
+        return result;
+    }
+
+    // Initialize English App
+    changeLanguage();
 
     function showView(viewId) {
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -135,7 +285,7 @@
 
     async function submitCitation() {
         const citation = document.getElementById('citationInput').value;
-        if (!citation) return alert("Please enter a citation.");
+        if (!citation) return alert(t('alertEmptyRef'));
         await startQuiz(citation);
     }
 
@@ -146,7 +296,7 @@
     async function startQuiz(citation) {
         const includeFrq = document.getElementById('includeFrqCheck').checked;
         showView('view-loading');
-        document.getElementById('loadingText').innerText = "Validating reference...";
+        document.getElementById('loadingText').innerText = t('loadingRef');
         
         try {
             const valRes = await fetch('/validate', {
@@ -157,21 +307,25 @@
             const valData = await valRes.json();
             
             if (valData.status === 'error') {
-                alert(valData.message);
+                alert(t(valData.error_key) || "Validation Error");
                 return showView('view-select');
             }
             
             currentPassage = valData.passage;
             
-            document.getElementById('loadingText').innerText = `Generating 5 questions...`;
+            document.getElementById('loadingText').innerText = t('generatingQ');
             if (includeFrq) {
-                document.getElementById('loadingSubtext').innerText = "This includes a custom writing section.";
+                document.getElementById('loadingSubtext').innerText = t('loadingSubtextFrq');
             }
             
             const genRes = await fetch('/generate_questions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ passage: currentPassage, include_frq: includeFrq })
+                body: JSON.stringify({ 
+                    passage: currentPassage, 
+                    include_frq: includeFrq,
+                    language: currentLang 
+                })
             });
 
             const text = await genRes.text();
@@ -179,7 +333,7 @@
             try {
                 genData = JSON.parse(text);
             } catch (e) {
-                throw new Error("Server timeout or invalid response. The server may be overloaded.");
+                throw new Error("Server timeout or invalid response.");
             }
             
             if (genData.error) throw new Error(genData.error);
@@ -195,30 +349,24 @@
         }
     }
 
-    // New function to handle the massive click buttons
     function selectOption(qIdx, optionLetter) {
         userAnswers[qIdx] = optionLetter;
-        
-        // Deselect all buttons for this specific question
         document.querySelectorAll(`.q${qIdx}-btn`).forEach(btn => {
             btn.classList.remove('selected', 'btn-primary', 'text-white');
             btn.classList.add('btn-outline-secondary');
         });
-        
-        // Highlight the clicked button
         const selectedBtn = document.getElementById(`btn_q${qIdx}_${optionLetter}`);
         selectedBtn.classList.remove('btn-outline-secondary');
         selectedBtn.classList.add('selected', 'btn-primary', 'text-white');
     }
 
     function renderQuiz() {
-        userAnswers = {}; // reset selections
+        userAnswers = {}; 
         const container = document.getElementById('mcqContainer');
         container.innerHTML = '';
-        document.getElementById('quizPassageTitle').innerText = `Studying: ${currentPassage}`;
+        document.getElementById('quizPassageTitle').innerText = `${t('studying')} ${localizePassage(currentPassage)}`;
         
         currentQuiz.mcqs.forEach((mcq, idx) => {
-            // Renders large, full-width buttons instead of radios
             container.innerHTML += `
                 <div class="card mb-4 shadow-sm border-0 bg-white">
                     <div class="card-body p-4">
@@ -252,16 +400,13 @@
         
         currentQuiz.mcqs.forEach((mcq, idx) => {
             const userChoiceLetter = userAnswers[idx] || null;
-            
-            // Failsafe: Format correct option mathematically just in case of weird cached data
             let correctLetter = String(mcq.correct_option).replace(/option_/i, '').trim().toUpperCase();
             if (correctLetter.length > 1) correctLetter = correctLetter.charAt(correctLetter.length - 1);
 
             const isCorrect = userChoiceLetter === correctLetter;
             if (isCorrect) mcqScore++;
             
-            // Get the full text mapping for the results screen
-            const userChoiceText = userChoiceLetter ? mcq[`option_${userChoiceLetter.toLowerCase()}`] : 'No answer selected';
+            const userChoiceText = userChoiceLetter ? mcq[`option_${userChoiceLetter.toLowerCase()}`] : t('noAnswer');
             const correctChoiceText = mcq[`option_${correctLetter.toLowerCase()}`];
 
             mcqResults.push({
@@ -278,10 +423,10 @@
 
         if (hasFrq) {
             const userFrqAnswer = document.getElementById('frqAnswer').value.trim();
-            if (!userFrqAnswer && !confirm("You left the Free Response blank. Submit anyway?")) return;
+            if (!userFrqAnswer && !confirm(t('alertLeaveFrq'))) return;
             
             showView('view-loading');
-            document.getElementById('loadingText').innerText = "AI is grading your Free Response...";
+            document.getElementById('loadingText').innerText = t('grading');
             document.getElementById('loadingSubtext').innerText = '';
             
             try {
@@ -291,7 +436,8 @@
                     body: JSON.stringify({
                         passage: currentPassage,
                         frq_question: currentQuiz.frq_question,
-                        user_answer: userFrqAnswer || "No answer provided."
+                        user_answer: userFrqAnswer || t('noAnswer'),
+                        language: currentLang
                     })
                 });
                 const gradeData = await gradeRes.json();
@@ -302,7 +448,7 @@
                 
             } catch (err) {
                 console.error(err);
-                alert("Failed to grade FRQ. " + err.message);
+                alert(t('alertGradeFail') + " " + err.message);
                 showView('view-quiz');
             }
         } else {
@@ -312,23 +458,22 @@
     }
 
     function renderResults(score, results, frqGrade, frqAnswer) {
-        document.getElementById('mcqScoreText').innerText = `Multiple Choice Score: ${score} / ${results.length}`;
+        document.getElementById('mcqScoreText').innerText = `${t('mcqScore')} ${score} / ${results.length}`;
         
         const resContainer = document.getElementById('mcqResultsContainer');
         resContainer.innerHTML = '';
         
         results.forEach((r, idx) => {
-            // Displays the full text of the options instead of just A/B/C/D
             resContainer.innerHTML += `
                 <div class="alert ${r.isCorrect ? 'alert-success' : 'alert-danger'} py-3 shadow-sm border-0">
                     <h5 class="mb-3 fw-bold">${idx + 1}. ${r.question}</h5>
                     <hr class="opacity-25 my-2">
                     <p class="mb-2">
-                        <strong>Your Answer:</strong><br>
-                        ${r.userChoiceLetter ? `<span class="badge ${r.isCorrect ? 'bg-success' : 'bg-danger'} me-2 fs-6">${r.userChoiceLetter}</span> ${r.userChoiceText}` : '<em>None</em>'}
+                        <strong>${t('yourAnswer')}</strong><br>
+                        ${r.userChoiceLetter ? `<span class="badge ${r.isCorrect ? 'bg-success' : 'bg-danger'} me-2 fs-6">${r.userChoiceLetter}</span> ${r.userChoiceText}` : `<em>${t('none')}</em>`}
                     </p>
                     <p class="mb-0">
-                        <strong>Correct Answer:</strong><br>
+                        <strong>${t('correctAnswer')}</strong><br>
                         <span class="badge bg-success me-2 fs-6">${r.correctChoiceLetter}</span> ${r.correctChoiceText}
                     </p>
                 </div>
@@ -337,8 +482,8 @@
         
         if (frqGrade) {
             document.getElementById('frqResultCard').style.display = 'block';
-            document.getElementById('frqUserAnswer').innerText = frqAnswer || "No answer provided.";
-            document.getElementById('frqGradeText').innerText = `Score: ${frqGrade.score} / 3`;
+            document.getElementById('frqUserAnswer').innerText = frqAnswer || t('noAnswer');
+            document.getElementById('frqGradeText').innerText = `${t('scoreText')} ${frqGrade.score} / 3`;
             document.getElementById('frqFeedbackText').innerText = frqGrade.feedback;
         } else {
             document.getElementById('frqResultCard').style.display = 'none';

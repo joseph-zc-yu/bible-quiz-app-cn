@@ -12,9 +12,8 @@ app = Flask(__name__)
 # Initialize the Gemini client
 client = genai.Client()
 
-# --- Catholic Bible Metadata for Validation ---
+# --- Catholic Bible Metadata ---
 CATHOLIC_BIBLE = {
-    # Old Testament
     "Genesis": 50, "Exodus": 40, "Leviticus": 27, "Numbers": 36, "Deuteronomy": 34,
     "Joshua": 24, "Judges": 21, "Ruth": 4, "1 Samuel": 31, "2 Samuel": 24,
     "1 Kings": 22, "2 Kings": 25, "1 Chronicles": 29, "2 Chronicles": 36,
@@ -25,13 +24,31 @@ CATHOLIC_BIBLE = {
     "Daniel": 14, "Hosea": 14, "Joel": 3, "Amos": 9, "Obadiah": 1, "Jonah": 4,
     "Micah": 7, "Nahum": 3, "Habakkuk": 3, "Zephaniah": 3, "Haggai": 2,
     "Zechariah": 14, "Malachi": 4,
-    # New Testament
     "Matthew": 28, "Mark": 16, "Luke": 24, "John": 21, "Acts": 28, "Romans": 16,
     "1 Corinthians": 16, "2 Corinthians": 13, "Galatians": 6, "Ephesians": 6,
     "Philippians": 4, "Colossians": 4, "1 Thessalonians": 5, "2 Thessalonians": 3,
     "1 Timothy": 6, "2 Timothy": 4, "Titus": 3, "Philemon": 1, "Hebrews": 13,
     "James": 5, "1 Peter": 5, "2 Peter": 3, "1 John": 5, "2 John": 1, "3 John": 1,
     "Jude": 1, "Revelation": 22
+}
+
+CHINESE_ALIASES = {
+    "創世紀": "Genesis", "出谷紀": "Exodus", "肋未紀": "Leviticus", "戶籍紀": "Numbers", "申命紀": "Deuteronomy",
+    "若蘇厄書": "Joshua", "民長紀": "Judges", "盧德傳": "Ruth", "撒慕爾紀上": "1 Samuel", "撒慕爾紀下": "2 Samuel",
+    "列王紀上": "1 Kings", "列王紀下": "2 Kings", "編年紀上": "1 Chronicles", "編年紀下": "2 Chronicles",
+    "厄斯德拉上": "Ezra", "厄斯德拉下": "Nehemiah", "多俾亞傳": "Tobit", "友弟德傳": "Judith", "艾斯德爾傳": "Esther",
+    "瑪加伯上": "1 Maccabees", "瑪加伯下": "2 Maccabees", "約伯傳": "Job", "聖詠集": "Psalms", "箴言": "Proverbs",
+    "訓道篇": "Ecclesiastes", "雅歌": "Song of Solomon", "智慧篇": "Wisdom", "德訓篇": "Sirach",
+    "依撒意亞": "Isaiah", "耶肋米亞": "Jeremiah", "哀歌": "Lamentations", "巴路克": "Baruch", "厄則克耳": "Ezekiel",
+    "達尼爾": "Daniel", "歐瑟亞": "Hosea", "岳厄爾": "Joel", "亞毛斯": "Amos", "亞北底亞": "Obadiah", "約納": "Jonah",
+    "米該亞": "Micah", "納鴻": "Nahum", "哈巴谷": "Habakkuk", "索福尼亞": "Zephaniah", "哈蓋": "Haggai",
+    "匝加利亞": "Zechariah", "瑪拉基亞": "Malachi",
+    "瑪竇福音": "Matthew", "馬爾谷福音": "Mark", "路加福音": "Luke", "若望福音": "John", "宗徒大事錄": "Acts",
+    "羅馬書": "Romans", "格林多前書": "1 Corinthians", "格林多後書": "2 Corinthians", "迦拉達書": "Galatians",
+    "厄弗所書": "Ephesians", "斐理伯書": "Philippians", "哥羅森書": "Colossians", "得撒洛尼前書": "1 Thessalonians",
+    "得撒洛尼後書": "2 Thessalonians", "弟茂德前書": "1 Timothy", "弟茂德後書": "2 Timothy", "弟鐸書": "Titus",
+    "費肋孟書": "Philemon", "希伯來書": "Hebrews", "雅各伯書": "James", "伯多祿前書": "1 Peter", "伯多祿後書": "2 Peter",
+    "若望一書": "1 John", "若望二書": "2 John", "若望三書": "3 John", "猶達書": "Jude", "若望默示錄": "Revelation"
 }
 
 OT_BOOKS = list(CATHOLIC_BIBLE.keys())[:46]
@@ -44,7 +61,7 @@ class MCQ(BaseModel):
     option_b: str
     option_c: str
     option_d: str
-    correct_option: Literal["A", "B", "C", "D"] # Forces the AI to strictly output one of these letters
+    correct_option: Literal["A", "B", "C", "D"]
 
 class QuizMCQOnly(BaseModel):
     mcqs: list[MCQ]
@@ -58,75 +75,66 @@ class FRQGrade(BaseModel):
     feedback: str
 
 # --- Helper Functions ---
-def normalize(s):
-    return " ".join(s.split()).lower()
-
 def parse_citation(citation):
-    """
-    Locally validates Bible citations without using AI.
-    Supports: Book, Chapter, Chapter Ranges, and Single-Chapter Verse Ranges.
-    Rejects: Gibberish, cross-chapter verse ranges (ambiguity), and out-of-range chapters.
-    """
-    norm_cit = normalize(citation)
-    found_book = None
+    """Safely validates English and Chinese (Sigao) citations locally."""
+    # Convert Chinese full-width colons/hyphens to standard
+    citation = citation.replace('：', ':').replace('－', '-')
+    norm_cit = " ".join(citation.split()).lower()
     
-    # Match the book name
+    found_book = None
+    remainder = ""
+    
+    # 1. Match English Book Names
     for book in sorted(CATHOLIC_BIBLE.keys(), key=len, reverse=True):
-        norm_book = normalize(book)
-        if norm_cit.startswith(norm_book):
+        if norm_cit.startswith(book.lower()):
             found_book = book
-            remainder = norm_cit[len(norm_book):].strip()
+            remainder = norm_cit[len(book):].strip()
             break
             
+    # 2. Match Chinese Aliases (ignores spaces for natural Chinese typing)
     if not found_book:
-        return {"error": "Invalid book name. Please check your spelling."}
+        cit_no_spaces = citation.replace(" ", "")
+        for ch_book, en_book in sorted(CHINESE_ALIASES.items(), key=lambda x: len(x[0]), reverse=True):
+            if cit_no_spaces.startswith(ch_book):
+                found_book = en_book
+                remainder = cit_no_spaces[len(ch_book):]
+                break
+
+    if not found_book:
+        return {"error_key": "err_invalid_book"}
     
-    # Case 1: Entire Book (e.g., "Genesis")
+    # Case 1: Entire Book
     if not remainder:
         return {"book": found_book, "type": "book"}
         
     max_chapters = CATHOLIC_BIBLE[found_book]
     
-    # Case 2: Single Chapter (e.g., "Genesis 1")
-    m_single_chapter = re.match(r'^(\d+)$', remainder)
-    if m_single_chapter:
-        ch = int(m_single_chapter.group(1))
-        if ch < 1 or ch > max_chapters:
-            return {"error": f"Invalid chapter. {found_book} only has {max_chapters} chapters."}
+    # Case 2: Single Chapter
+    m_single = re.match(r'^(\d+)$', remainder)
+    if m_single:
+        ch = int(m_single.group(1))
+        if ch < 1 or ch > max_chapters: return {"error_key": "err_invalid_chapter"}
         return {"book": found_book, "chapter": ch, "type": "chapter"}
         
-    # Case 3: Chapter Range (e.g., "Genesis 1-2")
-    m_chapter_range = re.match(r'^(\d+)-(\d+)$', remainder)
-    if m_chapter_range:
-        ch_start = int(m_chapter_range.group(1))
-        ch_end = int(m_chapter_range.group(2))
-        if ch_start < 1 or ch_end < 1:
-            return {"error": "Chapter numbers must be 1 or greater."}
-        if ch_start > max_chapters or ch_end > max_chapters:
-            return {"error": f"Invalid chapter range. {found_book} only has {max_chapters} chapters."}
-        if ch_end < ch_start:
-            return {"error": "Invalid chapter range. The end chapter cannot precede the start chapter."}
+    # Case 3: Chapter Range
+    m_ch_range = re.match(r'^(\d+)-(\d+)$', remainder)
+    if m_ch_range:
+        ch_start, ch_end = int(m_ch_range.group(1)), int(m_ch_range.group(2))
+        if ch_start < 1 or ch_end > max_chapters or ch_end < ch_start:
+            return {"error_key": "err_invalid_range"}
         return {"book": found_book, "chapter_start": ch_start, "chapter_end": ch_end, "type": "chapter_range"}
         
-    # Case 4: Verse / Verse Range (e.g., "Genesis 1:1-5" or "Genesis 1:1")
+    # Case 4: Verse Range
     m_verse = re.match(r'^(\d+):(\d+)(?:-(\d+))?$', remainder)
     if m_verse:
-        ch = int(m_verse.group(1))
-        v_start = int(m_verse.group(2))
+        ch, v_start = int(m_verse.group(1)), int(m_verse.group(2))
         v_end = int(m_verse.group(3)) if m_verse.group(3) else v_start
-        
-        if ch < 1 or ch > max_chapters:
-            return {"error": f"Invalid chapter. {found_book} only has {max_chapters} chapters."}
-        if v_start < 1 or v_end < 1:
-            return {"error": "Verse numbers must be 1 or greater."}
-        if v_end < v_start:
-            return {"error": "Invalid verse range. The end verse cannot precede the start verse."}
-            
+        if ch < 1 or ch > max_chapters or v_start < 1 or v_end < v_start:
+            return {"error_key": "err_invalid_range"}
         return {"book": found_book, "chapter": ch, "verse_start": v_start, "verse_end": v_end, "type": "verse"}
         
-    # Default Fallback: Matches ambiguous inputs like "Genesis 1-2:1-5" or general gibberish
-    return {"error": "Invalid format. Use formats like 'John 3', 'John 1-2', or 'John 3:16-21'. Avoid mixing ranges."}
-    
+    return {"error_key": "err_invalid_format"}
+
 def parse_llm_json(text):
     text = text.strip()
     if text.startswith("```json"): text = text[7:-3]
@@ -143,20 +151,16 @@ def validate():
     citation = request.json.get('citation', '')
     parsed = parse_citation(citation)
     
-    if 'error' in parsed:
-        return jsonify({"status": "error", "message": parsed['error']})
+    if 'error_key' in parsed:
+        return jsonify({"status": "error", "error_key": parsed['error_key']})
     
     passage_str = parsed['book']
-    if parsed['type'] == 'chapter':
-        passage_str += f" {parsed['chapter']}"
-    elif parsed['type'] == 'chapter_range':
-        passage_str += f" {parsed['chapter_start']}-{parsed['chapter_end']}"
+    if parsed['type'] == 'chapter': passage_str += f" {parsed['chapter']}"
+    elif parsed['type'] == 'chapter_range': passage_str += f" {parsed['chapter_start']}-{parsed['chapter_end']}"
     elif parsed['type'] == 'verse':
         passage_str += f" {parsed['chapter']}:{parsed['verse_start']}"
-        if parsed['verse_end'] > parsed['verse_start']:
-            passage_str += f"-{parsed['verse_end']}"
+        if parsed['verse_end'] > parsed['verse_start']: passage_str += f"-{parsed['verse_end']}"
             
-    # Return exactly 5 questions
     return jsonify({"status": "ok", "passage": passage_str, "num_questions": 5})
 
 @app.route('/generate_questions', methods=['POST'])
@@ -164,23 +168,32 @@ def generate_questions():
     data = request.json
     passage = data.get('passage')
     include_frq = data.get('include_frq', False)
+    lang = data.get('language', 'en')
     
     schema = QuizWithFRQ if include_frq else QuizMCQOnly
+    
+    # Dynamically inject language, theology constraints, and Bible version
+    if lang == 'zh':
+        bible_version = "Catholic Chinese Sigao Bible (思高聖經)"
+        lang_instruction = "The entire output (questions, options, correct answers, frq_question) MUST be in Traditional Chinese (繁體中文). You MUST use strict Catholic Chinese terminology (e.g., 天主 instead of 上帝, 聖神 instead of 聖靈, 若望 instead of 約翰)."
+    else:
+        bible_version = "New Revised Standard Version Catholic Edition (NRSV-CE)"
+        lang_instruction = "The entire output MUST be in English."
+
     frq_instruction = "2. Generate exactly 1 short free-response question (FRQ) that requires synthesis and consolidation of ideas from the passage." if include_frq else ""
     
     prompt = f"""
-    You are an expert Catholic theology teacher. Generate a quiz strictly based on the Catholic Bible for: {passage}.
+    You are an expert Catholic theology teacher. Generate a quiz strictly based on the {bible_version} for: {passage}.
+    {lang_instruction}
     1. Generate exactly 5 multiple-choice questions (MCQs). Each MCQ must have 4 options and one clear correct answer.
     {frq_instruction}
     """
+    
     try:
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=schema,
-            ),
+            config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=schema),
         )
         return jsonify(parse_llm_json(response.text))
     except Exception as e:
@@ -189,22 +202,23 @@ def generate_questions():
 @app.route('/grade_frq', methods=['POST'])
 def handle_grade_frq():
     data = request.json
+    lang = data.get('language', 'en')
+    lang_instruction = "Provide your grading and constructive feedback strictly in Traditional Chinese (繁體中文), using proper Catholic terminology." if lang == 'zh' else "Provide a short, constructive feedback paragraph in English."
+    
     prompt = f"""
     You are a Catholic theology teacher grading a student's answer.
     Passage: {data.get('passage')}
     Question: {data.get('frq_question')}
     Student's Answer: {data.get('user_answer')}
     
-    Grade the answer on an integer scale from 0 to 3 based on synthesis, consolidation of ideas, and theological accuracy according to the Catholic faith. Provide a short, constructive feedback paragraph.
+    Grade the answer on an integer scale from 0 to 3 based on synthesis, consolidation of ideas, and theological accuracy according to the Catholic faith.
+    {lang_instruction}
     """
     try:
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=FRQGrade,
-            ),
+            config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=FRQGrade),
         )
         return jsonify(parse_llm_json(response.text))
     except Exception as e:
