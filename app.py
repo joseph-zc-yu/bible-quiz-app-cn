@@ -4,13 +4,15 @@ import re
 from typing import Literal
 from flask import Flask, render_template, request, jsonify
 from pydantic import BaseModel
-from google import genai
-from google.genai import types
+from openai import OpenAI
 
 app = Flask(__name__)
 
-# Initialize the Gemini client
-client = genai.Client()
+# Initialize the OpenAI-compatible client for Zhipu AI (BigModel)
+client = OpenAI(
+    api_key=os.environ.get("ZHIPU_API_KEY", "your-api-key"),
+    base_url="https://open.bigmodel.cn/api/paas/v4/"
+)
 
 # --- Catholic Bible Metadata ---
 CATHOLIC_BIBLE = {
@@ -54,44 +56,20 @@ CHINESE_ALIASES = {
 OT_BOOKS = list(CATHOLIC_BIBLE.keys())[:46]
 NT_BOOKS = list(CATHOLIC_BIBLE.keys())[46:]
 
-# --- Pydantic Schemas ---
-class MCQ(BaseModel):
-    question: str
-    option_a: str
-    option_b: str
-    option_c: str
-    option_d: str
-    correct_option: Literal["A", "B", "C", "D"]
-
-class QuizMCQOnly(BaseModel):
-    mcqs: list[MCQ]
-
-class QuizWithFRQ(BaseModel):
-    mcqs: list[MCQ]
-    frq_question: str
-
-class FRQGrade(BaseModel):
-    score: int
-    feedback: str
-
 # --- Helper Functions ---
 def parse_citation(citation):
-    """Safely validates English and Chinese (Sigao) citations locally."""
-    # Convert Chinese full-width colons/hyphens to standard
     citation = citation.replace('：', ':').replace('－', '-')
     norm_cit = " ".join(citation.split()).lower()
     
     found_book = None
     remainder = ""
     
-    # 1. Match English Book Names
     for book in sorted(CATHOLIC_BIBLE.keys(), key=len, reverse=True):
         if norm_cit.startswith(book.lower()):
             found_book = book
             remainder = norm_cit[len(book):].strip()
             break
             
-    # 2. Match Chinese Aliases (ignores spaces for natural Chinese typing)
     if not found_book:
         cit_no_spaces = citation.replace(" ", "")
         for ch_book, en_book in sorted(CHINESE_ALIASES.items(), key=lambda x: len(x[0]), reverse=True):
@@ -100,37 +78,29 @@ def parse_citation(citation):
                 remainder = cit_no_spaces[len(ch_book):]
                 break
 
-    if not found_book:
-        return {"error_key": "err_invalid_book"}
+    if not found_book: return {"error_key": "err_invalid_book"}
     
-    # Case 1: Entire Book
-    if not remainder:
-        return {"book": found_book, "type": "book"}
+    if not remainder: return {"book": found_book, "type": "book"}
         
     max_chapters = CATHOLIC_BIBLE[found_book]
     
-    # Case 2: Single Chapter
     m_single = re.match(r'^(\d+)$', remainder)
     if m_single:
         ch = int(m_single.group(1))
         if ch < 1 or ch > max_chapters: return {"error_key": "err_invalid_chapter"}
         return {"book": found_book, "chapter": ch, "type": "chapter"}
         
-    # Case 3: Chapter Range
     m_ch_range = re.match(r'^(\d+)-(\d+)$', remainder)
     if m_ch_range:
         ch_start, ch_end = int(m_ch_range.group(1)), int(m_ch_range.group(2))
-        if ch_start < 1 or ch_end > max_chapters or ch_end < ch_start:
-            return {"error_key": "err_invalid_range"}
+        if ch_start < 1 or ch_end > max_chapters or ch_end < ch_start: return {"error_key": "err_invalid_range"}
         return {"book": found_book, "chapter_start": ch_start, "chapter_end": ch_end, "type": "chapter_range"}
         
-    # Case 4: Verse Range
     m_verse = re.match(r'^(\d+):(\d+)(?:-(\d+))?$', remainder)
     if m_verse:
         ch, v_start = int(m_verse.group(1)), int(m_verse.group(2))
         v_end = int(m_verse.group(3)) if m_verse.group(3) else v_start
-        if ch < 1 or ch > max_chapters or v_start < 1 or v_end < v_start:
-            return {"error_key": "err_invalid_range"}
+        if ch < 1 or ch > max_chapters or v_start < 1 or v_end < v_start: return {"error_key": "err_invalid_range"}
         return {"book": found_book, "chapter": ch, "verse_start": v_start, "verse_end": v_end, "type": "verse"}
         
     return {"error_key": "err_invalid_format"}
@@ -168,41 +138,53 @@ def generate_questions():
     data = request.json
     passage = data.get('passage')
     include_frq = data.get('include_frq', False)
-    lang = data.get('language', 'en')
+    lang = data.get('language', 'zh')
     
-    schema = QuizWithFRQ if include_frq else QuizMCQOnly
-    
-    # Dynamically inject language, theology constraints, and Bible version
     if lang == 'zh':
         bible_version = "Catholic Chinese Sigao Bible (思高聖經)"
-        lang_instruction = "The entire output (questions, options, correct answers, frq_question) MUST be in Traditional Chinese (繁體中文). You MUST use strict Catholic Chinese terminology (e.g., 天主 instead of 上帝, 聖神 instead of 聖靈, 若望 instead of 約翰)."
+        lang_instruction = "The entire output MUST be in Traditional Chinese (繁體中文). You MUST use strict Catholic terminology (e.g., 天主 instead of 上帝, 聖神 instead of 聖靈)."
     else:
         bible_version = "New Revised Standard Version Catholic Edition (NRSV-CE)"
         lang_instruction = "The entire output MUST be in English."
 
     frq_instruction = "2. Generate exactly 1 short free-response question (FRQ) that requires synthesis and consolidation of ideas from the passage." if include_frq else ""
     
+    # Explicitly defining the JSON schema for Zhipu AI to follow
+    json_structure = '{"mcqs": [{"question": "...", "option_a": "...", "option_b": "...", "option_c": "...", "option_d": "...", "correct_option": "A"}]'
+    if include_frq:
+        json_structure += ', "frq_question": "..."}'
+    else:
+        json_structure += '}'
+
     prompt = f"""
-    You are an expert Catholic theology teacher. Generate a quiz strictly based on the {bible_version} for: {passage}.
+    You are an expert Catholic theology teacher. Generate a quiz based on the {bible_version} for: {passage}.
     {lang_instruction}
-    1. Generate exactly 5 multiple-choice questions (MCQs). Each MCQ must have 4 options and one clear correct answer.
+    1. Generate exactly 5 multiple-choice questions (MCQs). Each MCQ must have 4 options and one clear correct answer ('A', 'B', 'C', or 'D').
     {frq_instruction}
+    
+    You MUST output ONLY a valid JSON object matching this exact structure:
+    {json_structure}
     """
     
     try:
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=schema),
+        response = client.chat.completions.create(
+            model="glm-4-flash",
+            messages=[
+                {"role": "system", "content": "You are a helpful theology assistant that strictly outputs JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"}
         )
-        return jsonify(parse_llm_json(response.text))
+        result_text = response.choices[0].message.content
+        return jsonify(parse_llm_json(result_text))
     except Exception as e:
         return jsonify({"error": f"AI Generation Failed: {str(e)}"}), 400
 
 @app.route('/grade_frq', methods=['POST'])
 def handle_grade_frq():
     data = request.json
-    lang = data.get('language', 'en')
+    lang = data.get('language', 'zh')
+    
     lang_instruction = "Provide your grading and constructive feedback strictly in Traditional Chinese (繁體中文), using proper Catholic terminology." if lang == 'zh' else "Provide a short, constructive feedback paragraph in English."
     
     prompt = f"""
@@ -213,14 +195,21 @@ def handle_grade_frq():
     
     Grade the answer on an integer scale from 0 to 3 based on synthesis, consolidation of ideas, and theological accuracy according to the Catholic faith.
     {lang_instruction}
+    
+    You MUST output ONLY a valid JSON object matching this exact structure:
+    {{"score": 2, "feedback": "..."}}
     """
     try:
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=FRQGrade),
+        response = client.chat.completions.create(
+            model="glm-4-flash",
+            messages=[
+                {"role": "system", "content": "You are an expert Catholic grader that strictly outputs JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"}
         )
-        return jsonify(parse_llm_json(response.text))
+        result_text = response.choices[0].message.content
+        return jsonify(parse_llm_json(result_text))
     except Exception as e:
          return jsonify({"error": str(e)}), 400
 

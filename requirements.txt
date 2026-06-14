@@ -1,4 +1,4 @@
 Flask
-google-genai
+openai
 pydantic
 gunicorn
