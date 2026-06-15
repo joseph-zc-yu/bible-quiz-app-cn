@@ -5,14 +5,23 @@ from typing import Literal
 from flask import Flask, render_template, request, jsonify
 from pydantic import BaseModel
 from openai import OpenAI
+from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 
 # Initialize the OpenAI-compatible client for Zhipu AI (BigModel)
 client = OpenAI(
     api_key=os.environ.get("ZHIPU_API_KEY", "your-api-key"),
-    base_url="https://open.bigmodel.cn/api/paas/v4" # Removed trailing slash to prevent 404 routing errors
+    base_url="https://open.bigmodel.cn/api/paas/v4"
 )
+
+# --- Global JSON Error Handler ---
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Ensures all backend errors return JSON instead of crashing with HTML."""
+    if isinstance(e, HTTPException):
+        return e
+    return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
 
 # --- Catholic Bible Metadata ---
 CATHOLIC_BIBLE = {
@@ -42,9 +51,9 @@ CHINESE_ALIASES = {
     "瑪加伯上": "1 Maccabees", "瑪加伯下": "2 Maccabees", "約伯傳": "Job", "聖詠集": "Psalms", "箴言": "Proverbs",
     "訓道篇": "Ecclesiastes", "雅歌": "Song of Solomon", "智慧篇": "Wisdom", "德訓篇": "Sirach",
     "依撒意亞": "Isaiah", "耶肋米亞": "Jeremiah", "哀歌": "Lamentations", "巴路克": "Baruch", "厄則克耳": "Ezekiel",
-    "達尼爾": "Daniel", "欧瑟亚": "Hosea", "岳厄尔": "Joel", "亚毛斯": "Amos", "亚北底亚": "Obadiah", "约纳": "Jonah",
-    "米该亚": "Micah", "纳鸿": "Nahum", "哈巴谷": "Habakkuk", "索福尼亚": "Zephaniah", "哈盖": "Haggai",
-    "匝加利亚": "Zechariah", "玛拉基亚": "Malachi",
+    "達尼爾": "Daniel", "歐瑟亞": "Hosea", "岳厄爾": "Joel", "亞毛斯": "Amos", "亞北底亞": "Obadiah", "約納": "Jonah",
+    "米該亞": "Micah", "納鴻": "Nahum", "哈巴谷": "Habakkuk", "索福尼亞": "Zephaniah", "哈蓋": "Haggai",
+    "匝加利亞": "Zechariah", "瑪拉基亞": "Malachi",
     "瑪竇福音": "Matthew", "馬爾谷福音": "Mark", "路加福音": "Luke", "若望福音": "John", "宗徒大事錄": "Acts",
     "羅馬書": "Romans", "格林多前書": "1 Corinthians", "格林多後書": "2 Corinthians", "迦拉達書": "Galatians",
     "厄弗所書": "Ephesians", "斐理伯書": "Philippians", "哥羅森書": "Colossians", "得撒洛尼前書": "1 Thessalonians",
@@ -118,7 +127,9 @@ def index():
 
 @app.route('/validate', methods=['POST'])
 def validate():
-    citation = request.json.get('citation', '')
+    # Use request.get_json(silent=True) to handle missing Content-Type headers safely
+    data = request.get_json(silent=True) or {}
+    citation = data.get('citation', '')
     parsed = parse_citation(citation)
     
     if 'error_key' in parsed:
@@ -135,10 +146,12 @@ def validate():
 
 @app.route('/generate_questions', methods=['POST'])
 def generate_questions():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     passage = data.get('passage')
     include_frq = data.get('include_frq', False)
     lang = data.get('language', 'zh')
+    
+    schema = QuizWithFRQ if include_frq else QuizMCQOnly
     
     if lang == 'zh':
         bible_version = "Catholic Chinese Sigao Bible (思高聖經)"
@@ -167,7 +180,7 @@ def generate_questions():
     
     try:
         response = client.chat.completions.create(
-            model="glm-4.5-flash", # Updated to the newest available free model
+            model="glm-4.5-flash", 
             messages=[
                 {"role": "system", "content": "You are a helpful theology assistant that strictly outputs JSON."},
                 {"role": "user", "content": prompt}
@@ -181,7 +194,7 @@ def generate_questions():
 
 @app.route('/grade_frq', methods=['POST'])
 def handle_grade_frq():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     lang = data.get('language', 'zh')
     
     lang_instruction = "Provide your grading and constructive feedback strictly in Traditional Chinese (繁體中文), using proper Catholic terminology." if lang == 'zh' else "Provide a short, constructive feedback paragraph in English."
@@ -200,7 +213,7 @@ def handle_grade_frq():
     """
     try:
         response = client.chat.completions.create(
-            model="glm-4.5-flash", # Updated here as well
+            model="glm-4.5-flash",
             messages=[
                 {"role": "system", "content": "You are an expert Catholic grader that strictly outputs JSON."},
                 {"role": "user", "content": prompt}
