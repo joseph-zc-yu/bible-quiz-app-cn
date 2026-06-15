@@ -155,7 +155,9 @@
             alertEmptyRef: "Please enter a citation.",
             alertLeaveFrq: "You left the Free Response blank. Submit anyway?",
             alertGradeFail: "Failed to grade FRQ.",
+            
             // Error keys
+            err_timeout: "Server timeout. The AI took too long to generate the questions. Please try again.",
             err_invalid_book: "Invalid book name. Please check your spelling.",
             err_invalid_chapter: "Invalid chapter. Please check the max chapters for this book.",
             err_invalid_range: "Invalid chapter/verse range.",
@@ -194,7 +196,9 @@
             alertEmptyRef: "請輸入經文出處。",
             alertLeaveFrq: "您的申論題為空白，確定要提交嗎？",
             alertGradeFail: "申論題評分失敗。",
+            
             // Error keys
+            err_timeout: "伺服器超時。AI 模型生成花費了太長時間，請稍後再試。",
             err_invalid_book: "無效的書卷名稱，請檢查拼字。",
             err_invalid_chapter: "無效的章節。",
             err_invalid_range: "無效的章節或節數範圍。",
@@ -221,9 +225,9 @@
         "1 John": "若望一書", "2 John": "若望二書", "3 John": "若望三書", "Jude": "猶達書", "Revelation": "若望默示錄"
     };
 
-    let currentLang = 'zh'; // Starts in Chinese natively
+    let currentLang = 'zh'; // Defaults to Chinese for the China App
     let currentQuiz = null;
-    let currentPassage = null; // Stored in English canonical format for safety
+    let currentPassage = null; 
     let userAnswers = {}; 
 
     function t(key) { return i18n[currentLang][key]; }
@@ -246,7 +250,6 @@
             btn.innerText = currentLang === 'zh' ? bookEnToZh[enBook] : enBook;
         });
 
-        // If actively viewing a quiz/results, dynamically update the title string
         if (currentPassage) {
             document.getElementById('quizPassageTitle').innerText = `${t('studying')} ${localizePassage(currentPassage)}`;
         }
@@ -255,7 +258,6 @@
     function localizePassage(passageStr) {
         if (currentLang === 'en') return passageStr;
         let result = passageStr;
-        // Replaces the English book prefix with the Chinese translation dynamically
         for (const enBook in bookEnToZh) {
             if (passageStr.startsWith(enBook)) {
                 result = passageStr.replace(enBook, bookEnToZh[enBook]);
@@ -265,7 +267,7 @@
         return result;
     }
 
-    // Initialize English App
+    // Initialize UI on load
     changeLanguage();
 
     function showView(viewId) {
@@ -299,19 +301,20 @@
         document.getElementById('loadingText').innerText = t('loadingRef');
         
         try {
-            // Defensive Fetching for Validation
             const valRes = await fetch('/validate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ citation })
             });
             
-            // Read as text first, so we don't crash if the server sends a plain-text 404/500 error
             const valText = await valRes.text(); 
             let valData;
             try {
                 valData = JSON.parse(valText);
             } catch (e) {
+                if (valText.includes("<html") || valText.includes("500") || valText.includes("502")) {
+                    throw new Error(t('err_timeout'));
+                }
                 throw new Error(`Validation API Error: ${valText.substring(0, 50)}...`);
             }
             
@@ -327,7 +330,6 @@
                 document.getElementById('loadingSubtext').innerText = t('loadingSubtextFrq');
             }
             
-            // Defensive Fetching for Generation
             const genRes = await fetch('/generate_questions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -343,6 +345,9 @@
             try {
                 genData = JSON.parse(genText);
             } catch (e) {
+                if (genText.includes("<html") || genText.includes("500") || genText.includes("502")) {
+                    throw new Error(t('err_timeout'));
+                }
                 throw new Error(`Generation API Error: ${genText.substring(0, 50)}...`);
             }
             
@@ -354,7 +359,7 @@
             
         } catch (err) {
             console.error(err);
-            alert("An error occurred: " + err.message);
+            alert(err.message);
             resetApp();
         }
     }
@@ -440,7 +445,6 @@
             document.getElementById('loadingSubtext').innerText = '';
             
             try {
-                // Defensive Fetching for Grading
                 const gradeRes = await fetch('/grade_frq', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -457,6 +461,9 @@
                 try {
                     gradeData = JSON.parse(gradeText);
                 } catch(e) {
+                    if (gradeText.includes("<html") || gradeText.includes("500") || gradeText.includes("502")) {
+                        throw new Error(t('err_timeout'));
+                    }
                     throw new Error(`Grading API Error: ${gradeText.substring(0, 50)}...`);
                 }
                 
