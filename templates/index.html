@@ -21,8 +21,8 @@
         <div class="d-flex align-items-center gap-2">
             <!-- Language Toggle -->
             <select class="form-select form-select-sm w-auto bg-dark text-white border-secondary" id="langSelect" onchange="changeLanguage()">
-                <option value="zh" selected>中文 (思高聖經)</option>
-                <option value="en">English (NRSV-CE)</option>
+                <option value="en" selected>English (NRSV-CE)</option>
+                <option value="zh">中文 (思高聖經)</option>
             </select>
             <button class="btn btn-outline-danger btn-sm text-nowrap" data-i18n="quitBtn" onclick="resetApp()">Quit / Start Over</button>
         </div>
@@ -225,7 +225,7 @@
         "1 John": "若望一書", "2 John": "若望二書", "3 John": "若望三書", "Jude": "猶達書", "Revelation": "若望默示錄"
     };
 
-    let currentLang = 'zh'; // Defaults to Chinese for the China App
+    let currentLang = 'en'; // Changed default to English
     let currentQuiz = null;
     let currentPassage = null; 
     let userAnswers = {}; 

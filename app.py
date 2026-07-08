@@ -104,8 +104,17 @@ def parse_citation(citation):
 
 def parse_llm_json(text):
     text = text.strip()
-    if text.startswith("```json"): text = text[7:-3]
-    elif text.startswith("```"): text = text[3:-3]
+    # Strip opening markdown safely
+    if text.startswith("```json"): 
+        text = text[7:]
+    elif text.startswith("```"): 
+        text = text[3:]
+    
+    # Strip closing markdown safely
+    text = text.strip()
+    if text.endswith("```"): 
+        text = text[:-3]
+        
     return json.loads(text.strip())
 
 @app.route('/')
@@ -135,7 +144,7 @@ def generate_questions():
     data = request.json or {}
     passage = data.get('passage', 'Genesis 1')
     include_frq = data.get('include_frq', False)
-    lang = data.get('language', 'zh')
+    lang = data.get('language', 'en') # Changed default to English
     
     if lang == 'zh':
         bible_version = "Catholic Chinese Sigao Bible (思高聖經)"
@@ -168,8 +177,8 @@ def generate_questions():
             messages=[
                 {"role": "system", "content": "You are a helpful theology assistant that strictly outputs JSON."},
                 {"role": "user", "content": prompt}
-            ],
-            response_format={"type": "json_object"}
+            ]
+            # response_format removed to fix code 1210 on lightweight models
         )
         result_text = response.choices[0].message.content
         return jsonify(parse_llm_json(result_text))
@@ -179,7 +188,7 @@ def generate_questions():
 @app.route('/grade_frq', methods=['POST'])
 def handle_grade_frq():
     data = request.json or {}
-    lang = data.get('language', 'zh')
+    lang = data.get('language', 'en') # Changed default to English
     
     lang_instruction = "Provide your grading and constructive feedback strictly in Traditional Chinese (繁體中文), using proper Catholic terminology." if lang == 'zh' else "Provide a short, constructive feedback paragraph in English."
     
@@ -201,8 +210,8 @@ def handle_grade_frq():
             messages=[
                 {"role": "system", "content": "You are an expert Catholic grader that strictly outputs JSON."},
                 {"role": "user", "content": prompt}
-            ],
-            response_format={"type": "json_object"}
+            ]
+            # response_format removed to fix code 1210 on lightweight models
         )
         result_text = response.choices[0].message.content
         return jsonify(parse_llm_json(result_text))
