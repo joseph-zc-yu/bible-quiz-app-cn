@@ -8,10 +8,9 @@ from openai import OpenAI
 
 app = Flask(__name__)
 
-# Corrected base_url with the critical trailing slash
 client = OpenAI(
     api_key=os.environ.get("ZHIPU_API_KEY", "your-api-key"),
-    base_url="https://open.bigmodel.cn/api/paas/v4/" 
+    base_url="https://open.bigmodel.cn/api/paas/v4"
 )
 
 # --- Catholic Bible Metadata ---
@@ -136,7 +135,7 @@ def generate_questions():
     data = request.json or {}
     passage = data.get('passage', 'Genesis 1')
     include_frq = data.get('include_frq', False)
-    lang = data.get('language', 'en')
+    lang = data.get('language', 'zh')
     
     if lang == 'zh':
         bible_version = "Catholic Chinese Sigao Bible (思高聖經)"
@@ -161,8 +160,6 @@ def generate_questions():
     
     You MUST output ONLY a valid JSON object matching this exact structure:
     {json_structure}
-    
-    Do not write any introductory or explanatory text. Your entire response must be the raw JSON object.
     """
     
     try:
@@ -171,7 +168,8 @@ def generate_questions():
             messages=[
                 {"role": "system", "content": "You are a helpful theology assistant that strictly outputs JSON."},
                 {"role": "user", "content": prompt}
-            ]
+            ],
+            response_format={"type": "json_object"}
         )
         result_text = response.choices[0].message.content
         return jsonify(parse_llm_json(result_text))
@@ -181,7 +179,7 @@ def generate_questions():
 @app.route('/grade_frq', methods=['POST'])
 def handle_grade_frq():
     data = request.json or {}
-    lang = data.get('language', 'en')
+    lang = data.get('language', 'zh')
     
     lang_instruction = "Provide your grading and constructive feedback strictly in Traditional Chinese (繁體中文), using proper Catholic terminology." if lang == 'zh' else "Provide a short, constructive feedback paragraph in English."
     
@@ -196,8 +194,6 @@ def handle_grade_frq():
     
     You MUST output ONLY a valid JSON object matching this exact structure:
     {{"score": 2, "feedback": "..."}}
-    
-    Do not write any introductory or explanatory text. Your entire response must be the raw JSON object.
     """
     try:
         response = client.chat.completions.create(
@@ -205,7 +201,8 @@ def handle_grade_frq():
             messages=[
                 {"role": "system", "content": "You are an expert Catholic grader that strictly outputs JSON."},
                 {"role": "user", "content": prompt}
-            ]
+            ],
+            response_format={"type": "json_object"}
         )
         result_text = response.choices[0].message.content
         return jsonify(parse_llm_json(result_text))
